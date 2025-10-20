@@ -1,9 +1,9 @@
 import { ConflictError, ValidationError } from '../errors/errors.js';
 import { validationResult } from 'express-validator';
-const User = require('../models/userModel.js');
+import User from '../models/userModel.js';
 
 // Create and Save a new User
-export const register = async (req, res) => {
+export const register = async (req, res, next) => {
     try {
         //Validate request
         const errors = validationResult(req);

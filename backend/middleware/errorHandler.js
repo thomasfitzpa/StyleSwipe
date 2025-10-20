@@ -1,6 +1,6 @@
 import { getErrorPayload } from '../utils.js';
 
-export default errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
     if(res.headersSent) {
         return next(err);
     }
@@ -9,3 +9,5 @@ export default errorHandler = (err, req, res, next) => {
 
     res.status(err.status || 500).json(getErrorPayload(err));
 }
+
+export default errorHandler;

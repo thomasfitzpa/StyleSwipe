@@ -1,8 +1,8 @@
-import { router } from 'express';
+import { Router } from 'express';
 import { validateUserCreation } from '../validator/userValidator.js';
 import { register } from '../controllers/userController.js';
 
-const userRouter = router();
+const userRouter = Router();
 
 userRouter.post('/register', validateUserCreation, register);
 
