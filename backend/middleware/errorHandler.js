@@ -1,4 +1,4 @@
-import { getErrorMessage } from '../utils.js';
+import { getErrorPayload } from '../utils.js';
 
 export default errorHandler = (err, req, res, next) => {
     if(res.headersSent) {
@@ -7,9 +7,5 @@ export default errorHandler = (err, req, res, next) => {
     
     console.error(err);
 
-    res.status(err.status || 500).json({
-        error: {
-            message: getErrorMessage(err) || 'An internal server error has occured'
-        }
-    });
+    res.status(err.status || 500).json(getErrorPayload(err));
 }

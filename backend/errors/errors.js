@@ -19,7 +19,8 @@ export class ConflictError extends CustomError {
 }
 
 export class ValidationError extends CustomError {
-    constructor(message = 'Validation Error') {
+    constructor(errors, message = 'Validation Error') {
         super(message, 422)
+        this.errors = errors
     }
 }
