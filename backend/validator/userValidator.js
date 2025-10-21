@@ -25,3 +25,22 @@ export const validateUserCreation = [
         .exists({ checkFalsy: true }).withMessage('Confirm Password is required.')
         .custom((value, { req }) => value === req.body.password).withMessage('Passwords do not match.')
 ];
+
+export const validateUserLogin = [
+    // Username or Email validation
+    body('identifier')
+        .trim()
+        .exists({ checkFalsy: true }).withMessage('Username or Email is required.')
+        .custom((value) => {
+            const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+            const isValidUsername = /^[a-zA-Z0-9_]+$/.test(value);
+            if (!isEmail && !isValidUsername) {
+                throw new Error('Must be a valid username or email.');
+            }
+            return true;
+        }),
+
+    // Password validation
+    body('password')
+        .exists({ checkFalsy: true }).withMessage('Password is required.')
+];
