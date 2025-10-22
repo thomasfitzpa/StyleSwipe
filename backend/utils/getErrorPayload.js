@@ -11,7 +11,7 @@ const getErrorMessage = (err) => {
     return 'An unknown error occurred.';
 }
 
-export const getErrorPayload = (err) => {
+const getErrorPayload = (err) => {
     const payload = {
         error: {
             message: getErrorMessage(err) || 'An internal server error has occured'
@@ -27,3 +27,5 @@ export const getErrorPayload = (err) => {
 
     return payload;
 }
+
+export default getErrorPayload
