@@ -1,4 +1,4 @@
-import { getErrorPayload } from '../utils.js';
+import getErrorPayload from '../utils/getErrorPayload.js';
 
 const errorHandler = (err, req, res, next) => {
     if(res.headersSent) {
