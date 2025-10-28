@@ -1,0 +1,12 @@
+<<<<<<< HEAD
+node_modules/
+*.env
+=======
+﻿node_modules/
+dist/
+build/
+.cache/
+.DS_Store
+Thumbs.db
+.env
+>>>>>>> fdba30c (Import CodeSandbox project)
