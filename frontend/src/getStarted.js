@@ -119,7 +119,7 @@ export default function GetStartedPage() {
         setPass("");
 
         setTimeout(() => {
-          window.location.hash = "#onboarding";
+          window.location.pathname = "/onboarding";
         }, 1500);
       } catch (err) {
         setToast({ message: err.message || "Failed to log in. Please try again.", type: "error" });
@@ -131,7 +131,7 @@ export default function GetStartedPage() {
 
   const goHome = (e) => {
     e.preventDefault();
-    window.location.hash = "#home";
+    window.location.pathname = "/";
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -222,7 +222,7 @@ export default function GetStartedPage() {
         </form>
 
         <a
-          href="#home"
+          href="/"
           onClick={goHome}
           className="inline-block mt-4 text-primary font-medium no-underline transition-colors text-sm hover:text-secondary"
         >

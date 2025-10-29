@@ -4,10 +4,33 @@ import AOS from "aos";
 import "./styles.css";
 import GetStartedPage from "./getStarted";
 import OnboardingPage from "./onboarding";
+import Header from "./Header";
 
 export default function App() {
-  // simple hash-based router
-  const [route, setRoute] = useState(window.location.hash || "#home");
+  // simple hash-based router + pathname routing
+  const getCurrentRoute = () => {
+    const pathname = window.location.pathname;
+    if (pathname === '/onboarding') return 'onboarding';
+    if (pathname === '/get-started') return 'get-started';
+    if (pathname === '/shop') return 'shop';
+    return window.location.hash || "#home";
+  };
+  
+  const [route, setRoute] = useState(getCurrentRoute());
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  useEffect(() => {
+    // Check if user is logged in
+    const checkLogin = () => {
+      const token = localStorage.getItem("accessToken");
+      setIsLoggedIn(!!token);
+    };
+    checkLogin();
+    
+    // Listen for storage changes
+    window.addEventListener("storage", checkLogin);
+    return () => window.removeEventListener("storage", checkLogin);
+  }, []);
   
   useEffect(() => {
     AOS.init({
@@ -19,35 +42,64 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-    const onHash = () => setRoute(window.location.hash || "#home");
+    const onHash = () => setRoute(getCurrentRoute());
+    const onPopState = () => setRoute(getCurrentRoute());
+    
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onPopState);
+    
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onPopState);
+    };
   }, []);
 
-  if (route === "#get-started") {
+  if (route === "#get-started" || route === "get-started") {
     return (
       <div className="min-h-screen w-full">
-        <FloatingNav />
+        <Header isLoggedIn={isLoggedIn} />
         <GetStartedPage />
         <Footer />
       </div>
     );
   }
 
-  if (route === "#onboarding") {
+  if (route === "#onboarding" || route === "onboarding") {
     return (
       <div className="min-h-screen w-full">
-        <FloatingNav />
+        <Header isLoggedIn={isLoggedIn} />
         <OnboardingPage />
         <Footer />
       </div>
     );
   }
 
+  // Shop page for logged-in users
+  if (route === "shop" || (isLoggedIn && route === "#home")) {
+    return (
+      <div className="min-h-screen w-full">
+        <div id="top" />
+        <Header isLoggedIn={isLoggedIn} onLoginChange={setIsLoggedIn} />
+        <div className="flex justify-center items-center min-h-[80vh] px-5 py-10">
+          <div className="max-w-2xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
+              Ready to <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Swipe</span>?
+            </h1>
+            <p className="text-[#a6a6b3] text-lg">
+              Your personalized feed is coming soon!
+            </p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Default landing page for non-logged-in users
   return (
     <div className="min-h-screen w-full">
       <div id="top" />
-      <FloatingNav />
+      <Header isLoggedIn={isLoggedIn} onLoginChange={setIsLoggedIn} />
       <Hero />
       <Section id="mission" title="Our mission" altBg="1">
         <p className="text-lg text-[#e6e6ef] text-center mx-auto mb-8 max-w-[840px] leading-relaxed font-normal" data-aos="fade-up">
@@ -170,21 +222,25 @@ export default function App() {
             name="Thomas Fitzpatrick"
             role="Frontend Developer"
             blurb="Favorite Style: Granola Outdoors — think Patagonia and KAVU."
+            linkedin=""
           />
           <Card
             name="Matthew Edelman"
             role="Frontend Developer"
-            blurb="Favorite Style: "
+            blurb="Favorite Style: Old Money"
+            linkedin="https://www.linkedin.com/in/matthewedelman1/"
           />
           <Card
             name="Adiel Garcia Tavarez"
             role="Software Developer"
             blurb="Favorite Style: "
+            linkedin=""
           />
           <Card
             name="Alex Yan"
             role="Software Developer"
             blurb="Favorite Style: "
+            linkedin=""
           />
           <Card
             name="YOU! All of Our Users!"
@@ -243,64 +299,10 @@ export default function App() {
 
 /* ---------- UI Bits ---------- */
 
-function FloatingNav() {
-  const [route, setRoute] = useState(window.location.hash || "#home");
-
-  useEffect(() => {
-    const onHash = () => setRoute(window.location.hash || "#home");
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  const goHome = (e) => {
-    e.preventDefault();
-    window.location.hash = "#home";
-    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-  };
-
-  const goGetStarted = (e) => {
-    e.preventDefault();
-    window.location.hash = "#get-started";
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  // Simplified nav for get-started and onboarding pages
-  if (route === "#get-started" || route === "#onboarding") {
-    return (
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-gradient-to-b from-[rgba(12,12,17,0.85)] to-[rgba(12,12,17,0.65)] border-b border-white/10 shadow-lg">
-        <a className="font-bold text-lg flex items-center gap-3 transition-transform hover:-translate-y-0.5 tracking-tight" href="#home" onClick={goHome}>
-          <span className="inline-grid place-items-center w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-secondary text-dark-bg font-extrabold shadow-lg shadow-primary/30">SS</span> 
-          StyleSwipe
-        </a>
-        {route === "#onboarding" ? (
-          <span className="text-[#a6a6b3] text-sm">Welcome!</span>
-        ) : (
-          <a className="inline-flex items-center px-5 py-2.5 rounded-lg font-bold text-sm bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45" href="#get-started">
-            Get started
-          </a>
-        )}
-      </nav>
-    );
-  }
-
-  // Full nav for home page - just "Login"
-  return (
-    <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-gradient-to-b from-[rgba(12,12,17,0.85)] to-[rgba(12,12,17,0.65)] border-b border-white/10 shadow-lg">
-      <a className="font-bold text-lg flex items-center gap-3 transition-transform hover:-translate-y-0.5 tracking-tight" href="#home" onClick={goHome}>
-        <span className="inline-grid place-items-center w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-secondary text-dark-bg font-extrabold shadow-lg shadow-primary/30">SS</span>
-        StyleSwipe
-      </a>
-      <a className="inline-flex items-center px-5 py-2.5 rounded-lg font-bold text-sm bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45" href="#get-started" onClick={goGetStarted}>
-        Login
-      </a>
-    </nav>
-  );
-}
-
 function Hero() {
   const goGetStarted = (e) => {
     e.preventDefault();
-    window.location.hash = "#get-started";
+    window.location.pathname = "/get-started";
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -316,7 +318,7 @@ function Hero() {
         </p>
 
         <div className="flex gap-4 justify-center mt-10 md:mt-14 items-center" data-aos="zoom-in" data-aos-delay="200">
-          <a className="inline-flex items-center justify-center px-8 py-4 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 hover:scale-105" href="#get-started" onClick={goGetStarted}>
+          <a className="inline-flex items-center justify-center px-8 py-4 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 hover:scale-105" href="/get-started" onClick={goGetStarted}>
             Get Started
           </a>
         </div>
@@ -399,12 +401,27 @@ function Stat({ label, value }) {
   );
 }
 
-function Card({ name, role, blurb }) {
+function Card({ name, role, blurb, linkedin }) {
   return (
     <div className="bg-white/[0.06] border border-white/10 rounded-2xl p-6 flex gap-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
       <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-secondary flex-shrink-0 shadow-lg"></div>
-      <div>
-        <div className="font-bold mb-1 text-base text-white">{name}</div>
+      <div className="flex-1">
+        <div className="flex items-start justify-between mb-1">
+          <div className="font-bold text-base text-white">{name}</div>
+          {linkedin && (
+            <a
+              href={linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#a6a6b3] hover:text-primary transition-colors flex-shrink-0 ml-2"
+              aria-label={`${name}'s LinkedIn`}
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+            </a>
+          )}
+        </div>
         <div className="text-[#a6a6b3] text-sm mb-2">{role}</div>
         <p className="text-[#e6e6ef] m-0 leading-relaxed">{blurb}</p>
       </div>
@@ -445,7 +462,7 @@ function FAQ({ q, a }) {
 function CTA() {
   const goGetStarted = (e) => {
     e.preventDefault();
-    window.location.hash = "#get-started";
+    window.location.pathname = "/get-started";
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   return (
@@ -454,7 +471,7 @@ function CTA() {
         <h2 className="mb-4 text-4xl md:text-5xl font-extrabold tracking-tight" data-aos="fade-up">Join the private beta</h2>
         <p className="text-[#a6a6b3] mb-8 text-lg leading-relaxed max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">Be first to swipe drops, build Boards, and shape what's next.</p>
         <div data-aos="zoom-in" data-aos-delay="200">
-          <a className="inline-flex items-center justify-center px-8 py-4 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 hover:scale-110" href="#get-started" onClick={goGetStarted}>
+          <a className="inline-flex items-center justify-center px-8 py-4 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 hover:scale-110" href="/get-started" onClick={goGetStarted}>
             Get early access
           </a>
         </div>
