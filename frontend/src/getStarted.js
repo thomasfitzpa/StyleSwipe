@@ -1,25 +1,131 @@
 import React, { useState, useEffect } from "react";
 
+const API_URL = "http://localhost:5000/api/users";
+
+// Toast Notification Component
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 4000); // Auto-dismiss after 4 seconds
+
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === "success" ? "bg-green-500" : "bg-red-500";
+  const icon = type === "success" ? "✓" : "✕";
+
+  return (
+    <div className="fixed bottom-5 right-5 z-[9999] animate-slide-in pointer-events-auto">
+      <div className={`${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-3 max-w-[350px]`}>
+        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/25 flex items-center justify-center font-bold text-sm">
+          {icon}
+        </div>
+        <div className="flex-1 text-sm font-medium leading-snug">{message}</div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 w-5 h-5 rounded-full hover:bg-white/20 transition-colors flex items-center justify-center text-lg leading-none font-bold"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function GetStartedPage() {
   const [mode, setMode] = useState("signup");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
+    setToast(null);
+
     if (mode === "signup") {
-      if (!name || !email || !pass)
-        return alert("Please fill all fields to sign up.");
-      alert(`Sign up:\nName: ${name}\nEmail: ${email}\nPassword: ••••`);
+      if (!name || !email || !pass) {
+        setToast({ message: "Please fill all fields to sign up.", type: "error" });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: name,
+            email: email,
+            password: pass,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Registration failed");
+        }
+
+        setToast({ message: "Account created successfully! Please log in.", type: "success" });
+        setMode("login");
+        setName("");
+        setPass("");
+      } catch (err) {
+        setToast({ message: err.message || "Failed to create account. Please try again.", type: "error" });
+      } finally {
+        setLoading(false);
+      }
     } else {
-      if (!email || !pass)
-        return alert("Please enter email and password to log in.");
-      alert(`Log in:\nEmail: ${email}\nPassword: ••••`);
+      if (!email || !pass) {
+        setToast({ message: "Please enter email and password to log in.", type: "error" });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            identifier: email,
+            password: pass,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Login failed");
+        }
+
+        localStorage.setItem("accessToken", data.accessToken);
+        localStorage.setItem("refreshToken", data.refreshToken);
+
+        setToast({ message: "Login successful! Redirecting...", type: "success" });
+        
+        setEmail("");
+        setPass("");
+
+        setTimeout(() => {
+          window.location.hash = "#onboarding";
+        }, 1500);
+      } catch (err) {
+        setToast({ message: err.message || "Failed to log in. Please try again.", type: "error" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -30,197 +136,100 @@ export default function GetStartedPage() {
   };
 
   return (
-    <section className="get-started-page">
-      <style>{`
-        .get-started-page {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-          background: linear-gradient(135deg, #4b6cb7, #182848);
-          padding: 20px;
-          font-family: "Inter", sans-serif;
-        }
-
-        .gs-card {
-          background: #fff;
-          border-radius: 20px;
-          padding: 40px 50px;
-          box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
-          width: 100%;
-          max-width: 420px;
-          text-align: center;
-        }
-
-        .gs-title {
-          font-size: 2rem;
-          margin-bottom: 8px;
-          color: #222;
-        }
-
-        .gs-subtitle {
-          color: #666;
-          font-size: 0.95rem;
-          margin-bottom: 24px;
-        }
-
-        .gs-toggle {
-          display: flex;
-          justify-content: center;
-          background: #f3f4f6;
-          border-radius: 10px;
-          margin-bottom: 30px;
-          overflow: hidden;
-        }
-
-        .tab {
-          flex: 1;
-          padding: 12px 0;
-          border: none;
-          background: transparent;
-          font-weight: 600;
-          color: #555;
-          transition: all 0.25s ease;
-          cursor: pointer;
-        }
-
-        .tab.active {
-          background: #4b6cb7;
-          color: white;
-          box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.2);
-        }
-
-        .tab:not(.active):hover {
-          background: #e6e9ef;
-        }
-
-        .gs-form {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-          margin-bottom: 24px;
-        }
-
-        .field {
-          text-align: left;
-        }
-
-        .field label {
-          font-weight: 600;
-          color: #333;
-          display: block;
-          margin-bottom: 6px;
-        }
-
-        .field input {
-          width: 100%;
-          padding: 12px 14px;
-          border: 1.5px solid #ccc;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          transition: border-color 0.25s;
-        }
-
-        .field input:focus {
-          outline: none;
-          border-color: #4b6cb7;
-        }
-
-        .btn.primary {
-          width: 100%;
-          padding: 14px 0;
-          background: #4b6cb7;
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 1rem;
-          font-weight: 600;
-          transition: all 0.3s ease;
-          cursor: pointer;
-        }
-
-        .btn.primary:hover {
-          background: #3d58a5;
-          transform: translateY(-2px);
-          box-shadow: 0 6px 15px rgba(75, 108, 183, 0.4);
-        }
-
-        .back-link {
-          display: inline-block;
-          margin-top: 10px;
-          color: #4b6cb7;
-          font-weight: 500;
-          text-decoration: none;
-          transition: color 0.2s ease;
-        }
-
-        .back-link:hover {
-          color: #182848;
-        }
-      `}</style>
-
-      <div className="gs-card">
-        <h2 className="gs-title">Get Started</h2>
-        <p className="gs-subtitle">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <section className="flex justify-center items-center min-h-screen px-5 py-10">
+        <div className="bg-white/[0.06] border border-white/[0.08] rounded-3xl p-12 md:p-14 shadow-[0_12px_30px_rgba(0,0,0,0.35)] w-full max-w-md text-center">
+        <h2 className="text-4xl mb-2 text-[#f7f7fb] font-bold">Get Started</h2>
+        <p className="text-[#a6a6b3] text-base mb-8 leading-relaxed">
           {mode === "signup"
             ? "Create your account to begin."
             : "Welcome back! Log in to continue."}
         </p>
 
-        <div className="gs-toggle">
+        <div className="flex justify-center bg-white/[0.04] border border-white/[0.08] rounded-xl mb-8 overflow-hidden">
           <button
-            className={`tab ${mode === "signup" ? "active" : ""}`}
+            className={`flex-1 py-3 border-none font-semibold text-[#a6a6b3] transition-all duration-250 cursor-pointer text-base ${
+              mode === "signup"
+                ? "bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/30"
+                : "bg-transparent hover:bg-white/[0.08] hover:text-[#f7f7fb]"
+            }`}
             onClick={() => setMode("signup")}
           >
             Sign Up
           </button>
           <button
-            className={`tab ${mode === "login" ? "active" : ""}`}
+            className={`flex-1 py-3 border-none font-semibold text-[#a6a6b3] transition-all duration-250 cursor-pointer text-base ${
+              mode === "login"
+                ? "bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/30"
+                : "bg-transparent hover:bg-white/[0.08] hover:text-[#f7f7fb]"
+            }`}
             onClick={() => setMode("login")}
           >
             Log In
           </button>
         </div>
 
-        <form className="gs-form" onSubmit={submit}>
+        <form className="flex flex-col gap-5 mb-6" onSubmit={submit}>
           {mode === "signup" && (
-            <div className="field">
-              <label>Name</label>
+            <div className="text-left">
+              <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Name</label>
               <input
+                className="w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white/[0.04] text-[#f7f7fb] placeholder:text-[#a6a6b3] focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)]"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
+                disabled={loading}
               />
             </div>
           )}
-          <div className="field">
-            <label>Email</label>
+          <div className="text-left">
+            <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Email</label>
             <input
               type="email"
+              className="w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white/[0.04] text-[#f7f7fb] placeholder:text-[#a6a6b3] focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)]"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@email.com"
+              disabled={loading}
             />
           </div>
-          <div className="field">
-            <label>Password</label>
+          <div className="text-left">
+            <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Password</label>
             <input
               type="password"
+              className="w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white/[0.04] text-[#f7f7fb] placeholder:text-[#a6a6b3] focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)]"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
               placeholder="••••••••"
+              disabled={loading}
             />
           </div>
 
-          <button className="btn primary" type="submit">
-            {mode === "signup" ? "Create Account" : "Log In"}
+          <button
+            className="w-full py-3.5 bg-gradient-to-br from-primary to-secondary text-dark-bg border-none rounded-xl text-base font-bold transition-all duration-300 cursor-pointer shadow-lg shadow-primary/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "Loading..." : mode === "signup" ? "Create Account" : "Log In"}
           </button>
         </form>
 
-        <a href="#home" onClick={goHome} className="back-link">
+        <a
+          href="#home"
+          onClick={goHome}
+          className="inline-block mt-4 text-primary font-medium no-underline transition-colors text-sm hover:text-secondary"
+        >
           ← Back to About
         </a>
-      </div>
-    </section>
+        </div>
+      </section>
+    </>
   );
 }
