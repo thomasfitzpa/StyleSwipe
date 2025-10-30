@@ -38,6 +38,7 @@ export default function GetStartedPage() {
   const [mode, setMode] = useState("signup");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -51,7 +52,7 @@ export default function GetStartedPage() {
     setToast(null);
 
     if (mode === "signup") {
-      if (!name || !email || !pass) {
+      if (!name || !email || !pass || !confirmPass) {
         setToast({ message: "Please fill all fields to sign up.", type: "error" });
         return;
       }
@@ -67,6 +68,7 @@ export default function GetStartedPage() {
             username: name,
             email: email,
             password: pass,
+            confirmPassword: confirmPass,
           }),
         });
 
@@ -80,6 +82,7 @@ export default function GetStartedPage() {
         setMode("login");
         setName("");
         setPass("");
+        setConfirmPass("");
       } catch (err) {
         setToast({ message: err.message || "Failed to create account. Please try again.", type: "error" });
       } finally {
@@ -179,12 +182,12 @@ export default function GetStartedPage() {
         <form className="flex flex-col gap-5 mb-6" onSubmit={submit}>
           {mode === "signup" && (
             <div className="text-left">
-              <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Name</label>
+              <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Username</label>
               <input
                 className="w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white/[0.04] text-[#f7f7fb] placeholder:text-[#a6a6b3] focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)]"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
+                placeholder="Your username"
                 disabled={loading}
               />
             </div>
@@ -211,6 +214,19 @@ export default function GetStartedPage() {
               disabled={loading}
             />
           </div>
+          {mode === "signup" && (
+            <div className="text-left">
+              <label className="font-semibold text-[#f7f7fb] block mb-2 text-sm">Confirm Password</label>
+              <input
+                type="password"
+                className="w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white/[0.04] text-[#f7f7fb] placeholder:text-[#a6a6b3] focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)]"
+                value={confirmPass}
+                onChange={(e) => setConfirmPass(e.target.value)}
+                placeholder="••••••••"
+                disabled={loading}
+              />
+            </div>
+          )}
 
           <button
             className="w-full py-3.5 bg-gradient-to-br from-primary to-secondary text-dark-bg border-none rounded-xl text-base font-bold transition-all duration-300 cursor-pointer shadow-lg shadow-primary/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
