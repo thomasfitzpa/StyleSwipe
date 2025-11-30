@@ -318,3 +318,44 @@ export const addToCart = async (req, res) => {
     });
 };
 
+export const getLikedItems = async (req, res) => {
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Convert page number and limit to integers in base 10
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const search = req.query.search || '';
+
+    // Find user and get liked item IDs
+    const existingUser = await User.findById(user._id).select('likedItems');
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Build query for items
+    const itemQuery = {
+        _id: { $in: existingUser.likedItems },
+    };
+    if (search) {
+        itemQuery.name = { $regex: search, $options: 'i' }; // 'i' for case insensitivity
+    }
+
+    // Get number of items that match query
+    const total = await Item.countDocuments(itemQuery);
+
+    // Get paginated items
+    const items = await Item.find(itemQuery)
+        .skip((page - 1) * limit) // Skip items in the pages before the current page
+        .limit(limit) // Only return as many items as the limit
+        .sort({ createdAt: -1 }); // Sort by most recently added
+
+    res.status(200).json({
+        items,
+        // Pagination metadata
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+    });
+};
+
