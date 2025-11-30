@@ -275,3 +275,46 @@ export const deleteLikedItems = async (req, res) => {
     });
 };
 
+export const addToCart = async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        throw new ValidationError(errors.array(), 'Invalid move to cart data provided');
+    }
+
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Get item IDs to move from request body
+    const { itemIds } = req.body;
+
+    // Find the user
+    const existingUser = await User.findById(user._id);
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Convert itemIds to strings for comparison
+    const itemIdStrings = itemIds.map(id => id.toString());
+
+    // Filter items that are in likedItems and not already in cart
+    const existingCartItemIds = existingUser.cart.map(cartItem => cartItem.item.toString());
+    const itemsToMove = existingUser.likedItems.filter(itemId => {
+        const itemIdStr = itemId.toString();
+        return itemIdStrings.includes(itemIdStr) && !existingCartItemIds.includes(itemIdStr);
+    });
+
+    // Add items to cart
+    const newCartItems = itemsToMove.map(itemId => ({
+        item: itemId,
+        dateAdded: Date.now()
+    }));
+    existingUser.cart.push(...newCartItems);
+
+    await existingUser.save();
+    res.status(200).json({ 
+        message: 'Items moved to cart successfully',
+        movedCount: itemsToMove.length,
+        skippedCount: itemIds.length - itemsToMove.length
+    });
+};
+

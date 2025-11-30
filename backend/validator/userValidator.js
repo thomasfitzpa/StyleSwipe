@@ -64,7 +64,7 @@ export const validateUserOnboarding = [
     // Pants size validation
     body('pantsSize')
         .isIn(['26', '28', '30', '32', '34', '36', '38', '40'])
-        .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.'),
+        .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.')
         .isIn(['26', '28', '30', '32', '34', '36', '38', '40'])
         .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.'),
 
@@ -217,7 +217,7 @@ export const validateAccountUpdate = [
         .withMessage('Price range must be one of: $0-50, $50-100, $100-200, $200+.')
 ];
 
-export const validateDeleteLikedItems = [
+export const validateItemIds = [
     body('itemIds')
         .exists({ checkFalsy: true }).withMessage('Item IDs are required.')
         .isArray({ min: 1 }).withMessage('Item IDs must be a non-empty array.')

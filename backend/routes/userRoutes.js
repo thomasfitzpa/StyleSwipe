@@ -11,7 +11,7 @@ userRouter.post('/token', refresh);
 userRouter.post('/logout', logout);
 userRouter.get('/account', authenticateToken, getAccountDetails);
 userRouter.put('/account', authenticateToken, validateAccountUpdate, updateAccount);
-userRouter.delete('/account/liked-items', authenticateToken, validateDeleteLikedItems, deleteLikedItems);
-userRouter.post('/onboarding', authenticateToken, validateUserOnboarding, onboarding);
+userRouter.delete('/account/liked-items', authenticateToken, validateItemIds, deleteLikedItems);
+userRouter.post('/account/add-to-cart', authenticateToken, validateItemIds, addToCart);
 
 export default userRouter;
