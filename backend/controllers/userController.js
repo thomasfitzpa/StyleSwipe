@@ -2,6 +2,7 @@ import { ConflictError, UnauthorizedError, ValidationError } from '../errors/err
 import { validationResult } from 'express-validator';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token.js';
 import User from '../models/userModel.js';
+import Item from '../models/itemModel.js';
 
 // Create and Save a new User
 export const register = async (req, res) => {
@@ -140,4 +141,36 @@ export const onboarding = async (req, res) => {
 
     await user.save();
     res.status(200).json({ message: 'Onboarding completed successfully' });
+};
+
+export const getAccountDetails = async (req, res) => {
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Fetch full user details including liked items to add to shopping cart
+    const fullUser = await User.findById(user._id).populate('likedItems');
+
+    if (!fullUser) throw new UnauthorizedError('User not found');
+
+    // Prepare account details response with full liked items
+    const accountDetails = {
+        username: fullUser.username,
+        email: fullUser.email,
+        name: fullUser.name,
+        bio: fullUser.bio,
+        gender: fullUser.gender,
+        dateOfBirth: fullUser.dateOfBirth,
+        profilePicture: fullUser.profilePicture,
+        preferences: fullUser.preferences,
+        likedItems: fullUser.likedItems,
+        dislikedItemsCount: fullUser.dislikedItems.length,
+        savedItemsCount: fullUser.savedItems.length,
+        cartItemsCount: fullUser.cart.length,
+        lastActive: fullUser.lastActive,
+        createdAt: fullUser.createdAt,
+        updatedAt: fullUser.updatedAt
+    };
+
+    res.status(200).json(accountDetails);
 };
