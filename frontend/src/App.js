@@ -1,10 +1,12 @@
 // App.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import AOS from "aos";
 import "./styles.css";
 import GetStartedPage from "./getStarted";
 import OnboardingPage from "./onboarding";
 import Header from "./Header";
+import ShopPage from "./Shop";
+import CheckoutPage from "./Checkout";
 
 export default function App() {
   // simple hash-based router + pathname routing
@@ -13,11 +15,13 @@ export default function App() {
     if (pathname === '/onboarding') return 'onboarding';
     if (pathname === '/get-started') return 'get-started';
     if (pathname === '/shop') return 'shop';
+    if (pathname === '/checkout') return 'checkout';
     return window.location.hash || "#home";
   };
   
   const [route, setRoute] = useState(getCurrentRoute());
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const shopCartRef = useRef(null);
   
   useEffect(() => {
     // Check if user is logged in
@@ -74,22 +78,33 @@ export default function App() {
     );
   }
 
+  // Checkout page
+  if (route === "checkout") {
+    return (
+      <div className="min-h-screen w-full">
+        <CheckoutPage isLoggedIn={isLoggedIn} onLoginChange={setIsLoggedIn} />
+        <Footer />
+      </div>
+    );
+  }
+
   // Shop page for logged-in users
   if (route === "shop" || (isLoggedIn && route === "#home")) {
     return (
       <div className="min-h-screen w-full">
         <div id="top" />
-        <Header isLoggedIn={isLoggedIn} onLoginChange={setIsLoggedIn} />
-        <div className="flex justify-center items-center min-h-[80vh] px-5 py-10">
-          <div className="max-w-2xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight">
-              Ready to <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Swipe</span>?
-            </h1>
-            <p className="text-[#a6a6b3] text-lg">
-              Your personalized feed is coming soon!
-            </p>
-          </div>
-        </div>
+        <Header 
+          isLoggedIn={isLoggedIn} 
+          onLoginChange={setIsLoggedIn}
+          onCartClick={() => {
+            if (shopCartRef.current) {
+              shopCartRef.current.openCart();
+            } else {
+              window.dispatchEvent(new CustomEvent('openCart'));
+            }
+          }}
+        />
+        <ShopPage ref={shopCartRef} />
         <Footer />
       </div>
     );
@@ -485,20 +500,6 @@ function Footer() {
     <footer className="py-8 border-t border-white/10 bg-[#1a1a24] w-full text-sm">
       <div className="flex flex-col md:flex-row justify-between items-center max-w-6xl mx-auto w-full gap-4 px-6">
       <div>© {new Date().getFullYear()} StyleSwipe</div>
-      <div className="flex gap-6">
-        <a
-          href="#team"
-          className="text-[#a6a6b3] no-underline transition-colors hover:text-white"
-          onClick={(e) => {
-            e.preventDefault();
-            document
-              .querySelector("#team")
-              ?.scrollIntoView({ behavior: "smooth" });
-          }}
-        >
-          Careers
-        </a>
-      </div>
       </div>
     </footer>
   );
