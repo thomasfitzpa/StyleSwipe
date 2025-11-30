@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     // Profile details
     name: {type: String, trim: true},
     bio: {type: String, trim: true},
-    gender: {type: String, enum: ["male", "female", "non-binary", "prefer not to say", "other"]},
+    gender: {type: String, enum: ["Male", "Female", "Unisex"]},
     dateOfBirth: {type: Date},
     profilePicture: {type: String, trim: true},
 
@@ -27,7 +27,35 @@ const userSchema = new mongoose.Schema({
     ],
     savedItems: [{type: mongoose.Schema.Types.ObjectId, ref: "Item"}],
 
-    // Preferences -- TO BE EXPANDED
+    // Preferences captured during onboarding
+    preferences: {
+        shoeSize: { type: Number, min: 4, max: 23 },
+        shirtSize: { type: String, enum: ["XS", "S", "M", "L", "XL", "XXL"] },
+        pantsSize: { type: String, enum: ["26", "28", "30", "32", "34", "36", "38", "40"] },
+        shortSize: { type: String, enum: ["XS", "S", "M", "L", "XL", "XXL"] },
+        stylePreferences: {
+            type: [String],
+            enum: [
+                "Streetwear", "Casual", "Athletic", "Formal", "Vintage", "Minimalist", "Boho", "Preppy", "Grunge", "Techwear"
+            ],
+            default: []
+        },
+        colorPreferences: {
+            type: [String],
+            enum: [
+                "Black", "White", "Gray", "Navy", "Brown", "Beige", "Red", "Blue", "Green", "Pastels"
+            ],
+            default: []
+        },
+        favoriteBrands: {
+            type: [String],
+            enum: [
+                "Nike", "Adidas", "Zara", "H&M", "Uniqlo", "Levi's", "Patagonia", "Vans", "Converse", "The North Face", "Supreme", "Stüssy", "Other"
+            ],
+            default: []
+        },
+        priceRange: { type: String, enum: ["$0-50", "$50-100", "$100-200", "$200+"] }
+    },
 
     // Metadata
     lastActive: {type: Date, default: Date.now},

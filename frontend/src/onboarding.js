@@ -46,11 +46,29 @@ export default function OnboardingPage() {
 
   const handleSubmit = async () => {
     setLoading(true);
-    // TODO: Send formData to backend API
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://localhost:5000/api/users/onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to save onboarding data');
+      }
+
       setComplete(true);
-    }, 1500);
+    } catch (error) {
+      console.error('Onboarding error:', error);
+      alert(error.message || 'Failed to save your preferences. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const shoeSizes = Array.from({ length: 20 }, (_, i) => i + 4); // 4-23

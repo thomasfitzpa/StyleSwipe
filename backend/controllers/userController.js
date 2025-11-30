@@ -99,3 +99,45 @@ export const logout = async (req, res) => {
     await user.save();
     res.status(200).json({ message: 'Logged out successfully' });
 };
+
+export const onboarding = async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        throw new ValidationError(errors.array(), 'Invalid onboarding data provided');
+    }
+
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Get onboarding data from request body
+    const {
+        gender,
+        shoeSize,
+        shirtSize,
+        shortSize,
+        pantsSize,
+        stylePreferences,
+        colorPreferences,
+        favoriteBrands,
+        priceRange,
+    } = req.body;
+
+    // Update user preferences
+    if (gender) user.gender = gender;
+
+    user.preferences = {
+        shoeSize: shoeSize || user.preferences.shoeSize,
+        shirtSize: shirtSize || user.preferences.shirtSize,
+        pantsSize: pantsSize || user.preferences.pantsSize,
+        shortSize: shortSize || user.preferences.shortSize,
+        stylePreferences: stylePreferences || user.preferences.stylePreferences,
+        colorPreferences: colorPreferences || user.preferences.colorPreferences,
+        favoriteBrands: favoriteBrands || user.preferences.favoriteBrands,
+        priceRange: priceRange || user.preferences.priceRange,
+    };
+
+    await user.save();
+    res.status(200).json({ message: 'Onboarding completed successfully' });
+};
