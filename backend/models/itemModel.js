@@ -51,12 +51,9 @@ const itemSchema = new mongoose.Schema({
     // Stock by size and color
     // Nested map of size -> color -> quantity
     stock: {
-        type: Map,
-        of: {
-            type: Map,
-            of: Number
-        },
-        default: {}
+        size: {
+            color: { type: Number, min: 0, default: 0 }
+        }
     },
     
     // Metadata
