@@ -216,3 +216,13 @@ export const validateAccountUpdate = [
         .isIn(['$0-50', '$50-100', '$100-200', '$200+'])
         .withMessage('Price range must be one of: $0-50, $50-100, $100-200, $200+.')
 ];
+
+export const validateDeleteLikedItems = [
+    body('itemIds')
+        .exists({ checkFalsy: true }).withMessage('Item IDs are required.')
+        .isArray({ min: 1 }).withMessage('Item IDs must be a non-empty array.')
+        .custom((value) => {
+            return value.every(id => typeof id === 'string' && id.length > 0);
+        })
+        .withMessage('All item IDs must be non-empty strings.')
+];

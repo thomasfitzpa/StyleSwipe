@@ -245,3 +245,33 @@ export const updateAccount = async (req, res) => {
     res.status(200).json({ message: 'Account updated successfully' });
 };
 
+export const deleteLikedItems = async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        throw new ValidationError(errors.array(), 'Invalid delete liked items data provided');
+    }
+
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Get item IDs to remove from request body
+    const { itemIds } = req.body;
+
+    // Find the user
+    const existingUser = await User.findById(user._id);
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Remove the specified items from likedItems
+    existingUser.likedItems = existingUser.likedItems.filter(
+        (itemId) => !itemIds.includes(itemId.toString())
+    );
+
+    await existingUser.save();
+    res.status(200).json({ 
+        message: 'Liked items removed successfully',
+        removedCount: itemIds.length 
+    });
+};
+
