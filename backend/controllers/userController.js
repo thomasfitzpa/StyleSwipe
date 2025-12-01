@@ -293,22 +293,51 @@ export const addToCart = async (req, res) => {
     const existingUser = await User.findById(user._id);
     if (!existingUser) throw new UnauthorizedError('User not found');
 
-    // Convert itemIds to strings for comparison
-    const itemIdStrings = itemIds.map(id => id.toString());
+    // Verify item exists
+    const item = await Item.findById(itemId);
+    if (!item) throw new ValidationError([], 'Item not found');
 
-    // Filter items that are in likedItems and not already in cart
-    const existingCartItemIds = existingUser.cart.map(cartItem => cartItem.item.toString());
-    const itemsToMove = existingUser.likedItems.filter(itemId => {
-        const itemIdStr = itemId.toString();
-        return itemIdStrings.includes(itemIdStr) && !existingCartItemIds.includes(itemIdStr);
-    });
+    // Verify selected size and color are available
+    if (!item.availableSizes.includes(selectedSize)) {
+        throw new ValidationError([], `Size ${selectedSize} is not available for this item`);
+    }
+    if (!item.availableColors.includes(selectedColor)) {
+        throw new ValidationError([], `Color ${selectedColor} is not available for this item`);
+    }
 
-    // Add items to cart
-    const newCartItems = itemsToMove.map(itemId => ({
-        item: itemId,
-        dateAdded: Date.now()
-    }));
-    existingUser.cart.push(...newCartItems);
+    // Check stock availability
+    const availableStock = item.stock?.[selectedSize]?.[selectedColor] || 0;
+    const requestedQuantity = quantity || 1;
+
+    // Check if this exact item/size/color combo already exists in cart
+    const existingCartItem = existingUser.cart.find(
+        cartItem => 
+            cartItem.item.toString() === itemId.toString() &&
+            cartItem.selectedSize === selectedSize &&
+            cartItem.selectedColor === selectedColor
+    );
+
+    if (existingCartItem) {
+        // Update quantity if already in cart
+        const newQuantity = existingCartItem.quantity + requestedQuantity;
+        if (newQuantity > availableStock) {
+            throw new ValidationError([], `Insufficient stock. Only ${availableStock} available, you already have ${existingCartItem.quantity} in cart`);
+        }
+        existingCartItem.quantity = newQuantity;
+    } else {
+        // Validate stock for new item
+        if (requestedQuantity > availableStock) {
+            throw new ValidationError([], `Insufficient stock. Only ${availableStock} available`);
+        }
+        // Add new item to cart
+        existingUser.cart.push({
+            item: itemId,
+            selectedSize,
+            selectedColor,
+            quantity: requestedQuantity,
+            dateAdded: Date.now()
+        });
+    }
 
     await existingUser.save();
     res.status(200).json({ 
@@ -356,6 +385,205 @@ export const getLikedItems = async (req, res) => {
         limit,
         total,
         totalPages: Math.ceil(total / limit)
+    });
+};
+
+export const getCartItems = async (req, res) => {
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Fetch user with populated cart items
+    const existingUser = await User.findById(user._id).populate({
+        path: 'cart.item',
+        select: 'name brand price images availableSizes availableColors stock'
+    });
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Safely map cart to response-friendly structure and compute subtotal
+    let subtotal = 0;
+    const cartItems = existingUser.cart.map(ci => {
+        const itemDoc = ci.item;
+        const price = itemDoc && itemDoc.price ? itemDoc.price : 0;
+        subtotal += price * (ci.quantity || 1);
+        return {
+            itemId: itemDoc ? itemDoc._id : ci.item,
+            name: itemDoc ? itemDoc.name : undefined,
+            brand: itemDoc ? itemDoc.brand : undefined,
+            price,
+            images: itemDoc ? itemDoc.images : undefined,
+            availableSizes: itemDoc ? itemDoc.availableSizes : undefined,
+            availableColors: itemDoc ? itemDoc.availableColors : undefined,
+            selectedSize: ci.selectedSize,
+            selectedColor: ci.selectedColor,
+            quantity: ci.quantity || 1,
+            dateAdded: ci.dateAdded,
+            stock: itemDoc && itemDoc.stock ? itemDoc.stock : undefined
+        };
+    });
+
+    res.status(200).json({
+        items: cartItems,
+        subtotal
+    });
+};
+
+export const updateCartItem = async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        throw new ValidationError(errors.array(), 'Invalid cart update data provided');
+    }
+
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Get update data from request body
+    const { itemId, oldSize, oldColor, newSize, newColor, newQuantity } = req.body;
+
+    // Find the user
+    const existingUser = await User.findById(user._id);
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Find the cart item to update
+    const cartItemIndex = existingUser.cart.findIndex(
+        ci => 
+            ci.item.toString() === itemId.toString() &&
+            ci.selectedSize === oldSize &&
+            ci.selectedColor === oldColor
+    );
+
+    if (cartItemIndex === -1) {
+        throw new ValidationError([], 'Cart item not found');
+    }
+
+    // Verify item exists
+    const item = await Item.findById(itemId);
+    if (!item) throw new ValidationError([], 'Item not found');
+
+    // Determine final size and color
+    const finalSize = newSize || oldSize;
+    const finalColor = newColor || oldColor;
+    const finalQuantity = newQuantity !== undefined ? newQuantity : existingUser.cart[cartItemIndex].quantity;
+
+    // Verify new size and color are available
+    if (!item.availableSizes.includes(finalSize)) {
+        throw new ValidationError([], `Size ${finalSize} is not available for this item`);
+    }
+    if (!item.availableColors.includes(finalColor)) {
+        throw new ValidationError([], `Color ${finalColor} is not available for this item`);
+    }
+
+    // Check stock availability
+    const availableStock = item.stock?.[finalSize]?.[finalColor] || 0;
+
+    // If size/color combination changed, check if it already exists in cart
+    if (finalSize !== oldSize || finalColor !== oldColor) {
+        const existingCartItem = existingUser.cart.find(
+            (ci, idx) => 
+                idx !== cartItemIndex &&
+                ci.item.toString() === itemId.toString() &&
+                ci.selectedSize === finalSize &&
+                ci.selectedColor === finalColor
+        );
+
+        if (existingCartItem) {
+            // Merge quantities into existing item
+            const combinedQuantity = existingCartItem.quantity + finalQuantity;
+            if (combinedQuantity > availableStock) {
+                throw new ValidationError([], `Insufficient stock. Only ${availableStock} available, you already have ${existingCartItem.quantity} of this size/color in cart`);
+            }
+            existingCartItem.quantity = combinedQuantity;
+            // Remove the old cart item
+            existingUser.cart.splice(cartItemIndex, 1);
+        } else {
+            // Update to new size/color
+            if (finalQuantity > availableStock) {
+                throw new ValidationError([], `Insufficient stock. Only ${availableStock} available`);
+            }
+            existingUser.cart[cartItemIndex].selectedSize = finalSize;
+            existingUser.cart[cartItemIndex].selectedColor = finalColor;
+            existingUser.cart[cartItemIndex].quantity = finalQuantity;
+        }
+    } else {
+        // Just updating quantity for same size/color
+        if (finalQuantity > availableStock) {
+            throw new ValidationError([], `Insufficient stock. Only ${availableStock} available`);
+        }
+        existingUser.cart[cartItemIndex].quantity = finalQuantity;
+    }
+
+    await existingUser.save();
+
+    // Recalculate subtotal by populating cart items
+    const updatedUser = await User.findById(user._id).populate({
+        path: 'cart.item',
+        select: 'price'
+    });
+
+    let subtotal = 0;
+    updatedUser.cart.forEach(ci => {
+        const price = ci.item?.price || 0;
+        subtotal += price * (ci.quantity || 1);
+    });
+
+    res.status(200).json({ 
+        message: 'Cart item updated successfully',
+        cartItemCount: existingUser.cart.length,
+        subtotal
+    });
+};
+
+export const removeCartItem = async (req, res) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        throw new ValidationError(errors.array(), 'Invalid remove cart item data provided');
+    }
+
+    // User obtained from auth middleware
+    const user = req.user;
+    if (!user) throw new UnauthorizedError('Authentication required');
+
+    // Get item details from request body
+    const { itemId, selectedSize, selectedColor } = req.body;
+
+    // Find the user
+    const existingUser = await User.findById(user._id);
+    if (!existingUser) throw new UnauthorizedError('User not found');
+
+    // Remove the cart item
+    const initialLength = existingUser.cart.length;
+    existingUser.cart = existingUser.cart.filter(
+        ci => 
+            !(ci.item.toString() === itemId.toString() &&
+              ci.selectedSize === selectedSize &&
+              ci.selectedColor === selectedColor)
+    );
+
+    if (existingUser.cart.length === initialLength) {
+        throw new ValidationError([], 'Cart item not found');
+    }
+
+    await existingUser.save();
+
+    // Recalculate subtotal by populating cart items
+    const updatedUser = await User.findById(user._id).populate({
+        path: 'cart.item',
+        select: 'price'
+    });
+
+    let subtotal = 0;
+    updatedUser.cart.forEach(ci => {
+        const price = ci.item?.price || 0;
+        subtotal += price * (ci.quantity || 1);
+    });
+
+    res.status(200).json({ 
+        message: 'Cart item removed successfully',
+        cartItemCount: existingUser.cart.length,
+        subtotal
     });
 };
 

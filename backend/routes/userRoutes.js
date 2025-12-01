@@ -1,6 +1,29 @@
 import { Router } from 'express';
-import { validateUserCreation, validateUserLogin, validateUserOnboarding, validateAccountUpdate, validateItemIds } from '../validator/userValidator.js';
-import { register, login, refresh, logout, getAccountDetails, getLikedItems, onboarding, updateAccount, deleteLikedItems, addToCart } from '../controllers/userController.js';
+import { 
+    validateUserCreation, 
+    validateUserLogin,
+    validateUserOnboarding, 
+    validateAccountUpdate, 
+    validateItemIds, 
+    validateCartUpdate, 
+    validateCartItemRemoval, 
+    validateAddToCart 
+} from '../validator/userValidator.js';
+import { 
+    register, 
+    login, 
+    refresh, 
+    logout, 
+    getAccountDetails, 
+    getLikedItems, 
+    onboarding, 
+    updateAccount, 
+    deleteLikedItems, 
+    addToCart, 
+    getCartItems, 
+    updateCartItem, 
+    removeCartItem 
+} from '../controllers/userController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const userRouter = Router();
@@ -19,6 +42,11 @@ userRouter.get('/account', authenticateToken, getAccountDetails);
 userRouter.get('/account/liked-items', authenticateToken, getLikedItems);
 userRouter.put('/account', authenticateToken, validateAccountUpdate, updateAccount);
 userRouter.delete('/account/liked-items', authenticateToken, validateItemIds, deleteLikedItems);
-userRouter.post('/account/add-to-cart', authenticateToken, validateItemIds, addToCart);
+userRouter.post('/account/add-to-cart', authenticateToken, validateAddToCart, addToCart);
+
+// Shopping cart routes
+userRouter.get('/cart', authenticateToken, getCartItems);
+userRouter.put('/cart', authenticateToken, validateCartUpdate, updateCartItem);
+userRouter.delete('/cart', authenticateToken, validateCartItemRemoval, removeCartItem);
 
 export default userRouter;
