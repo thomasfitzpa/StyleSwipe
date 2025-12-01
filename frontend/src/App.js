@@ -7,6 +7,8 @@ import OnboardingPage from "./onboarding";
 import Header from "./Header";
 import ShopPage from "./Shop";
 import CheckoutPage from "./Checkout";
+import ProfilePage from "./Profile";
+
 
 export default function App() {
   // simple hash-based router + pathname routing
@@ -16,6 +18,7 @@ export default function App() {
     if (pathname === '/get-started') return 'get-started';
     if (pathname === '/shop') return 'shop';
     if (pathname === '/checkout') return 'checkout';
+    if (pathname === '/profile') return 'profile';
     return window.location.hash || "#home";
   };
   
@@ -88,6 +91,15 @@ export default function App() {
     );
   }
 
+  if (route === "profile") {
+    return (
+      <div className="min-h-screen w-full">
+        <Header isLoggedIn={isLoggedIn} onLoginChange={setIsLoggedIn} />
+        <ProfilePage />
+        <Footer />
+      </div>
+    );
+  }
   // Shop page for logged-in users
   if (route === "shop" || (isLoggedIn && route === "#home")) {
     return (
