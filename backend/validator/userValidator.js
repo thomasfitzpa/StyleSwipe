@@ -48,37 +48,33 @@ export const validateUserLogin = [
 export const validateUserOnboarding = [
     // Gender validation
     body('gender')
-        .optional()
         .isIn(['Male', 'Female', 'Unisex'])
         .withMessage('Gender must be Male, Female, or Unisex.'),
 
     // Shoe size validation
     body('shoeSize')
-        .optional()
         .isInt({ min: 4, max: 23 })
         .withMessage('Shoe size must be between 4 and 23.'),
 
     // Shirt size validation
     body('shirtSize')
-        .optional()
         .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
         .withMessage('Shirt size must be one of: XS, S, M, L, XL, XXL.'),
 
     // Pants size validation
     body('pantsSize')
-        .optional()
+        .isIn(['26', '28', '30', '32', '34', '36', '38', '40'])
+        .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.')
         .isIn(['26', '28', '30', '32', '34', '36', '38', '40'])
         .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.'),
 
     // Short size validation
     body('shortSize')
-        .optional()
         .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
         .withMessage('Short size must be one of: XS, S, M, L, XL, XXL.'),
 
     // Style preferences validation
     body('stylePreferences')
-        .optional()
         .isArray()
         .withMessage('Style preferences must be an array.')
         .custom((value) => {
@@ -89,7 +85,6 @@ export const validateUserOnboarding = [
 
     // Color preferences validation
     body('colorPreferences')
-        .optional()
         .isArray()
         .withMessage('Color preferences must be an array.')
         .custom((value) => {
@@ -100,7 +95,6 @@ export const validateUserOnboarding = [
 
     // Favorite brands validation
     body('favoriteBrands')
-        .optional()
         .isArray()
         .withMessage('Favorite brands must be an array.')
         .custom((value) => {
@@ -111,7 +105,124 @@ export const validateUserOnboarding = [
 
     // Price range validation
     body('priceRange')
+        .isIn(['$0-50', '$50-100', '$100-200', '$200+'])
+        .withMessage('Price range must be one of: $0-50, $50-100, $100-200, $200+.')
+];
+
+export const validateAccountUpdate = [
+    // Username validation
+    body('username')
+        .optional()
+        .trim()
+        .isLength({ min: 3, max: 30 }).withMessage('Username must be between 3 and 30 characters.')
+        .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores.'),
+    
+    // Email validation
+    body('email')
+        .optional()
+        .trim()
+        .isEmail().withMessage('Invalid email format.'),
+    
+    // Name validation
+    body('name')
+        .optional()
+        .trim()
+        .isLength({ max: 100 }).withMessage('Name must not exceed 100 characters.'),
+    
+    // Bio validation (optional)
+    body('bio')
+        .optional()
+        .trim()
+        .isLength({ max: 500 }).withMessage('Bio must not exceed 500 characters.'),
+    
+    // Gender validation (optional)
+    body('gender')
+        .optional()
+        .isIn(['Male', 'Female', 'Unisex'])
+        .withMessage('Gender must be Male, Female, or Unisex.'),
+    
+    // Date of birth validation (optional)
+    body('dateOfBirth')
+        .optional()
+        .isISO8601()
+        .withMessage('Date of birth must be a valid date.'),
+    
+    // Profile picture validation (optional)
+    body('profilePicture')
+        .optional()
+        .trim()
+        .isURL().withMessage('Profile picture must be a valid URL.'),
+    
+    // Shoe size validation (optional)
+    body('shoeSize')
+        .optional()
+        .isInt({ min: 4, max: 23 })
+        .withMessage('Shoe size must be between 4 and 23.'),
+
+    // Shirt size validation (optional)
+    body('shirtSize')
+        .optional()
+        .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
+        .withMessage('Shirt size must be one of: XS, S, M, L, XL, XXL.'),
+
+    // Pants size validation (optional)
+    body('pantsSize')
+        .optional()
+        .isIn(['26', '28', '30', '32', '34', '36', '38', '40'])
+        .withMessage('Pants size must be one of: 26, 28, 30, 32, 34, 36, 38, 40.'),
+
+    // Short size validation (optional)
+    body('shortSize')
+        .optional()
+        .isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL'])
+        .withMessage('Short size must be one of: XS, S, M, L, XL, XXL.'),
+
+    // Style preferences validation (optional)
+    body('stylePreferences')
+        .optional()
+        .isArray()
+        .withMessage('Style preferences must be an array.')
+        .custom((value) => {
+            const validStyles = ['Streetwear', 'Casual', 'Athletic', 'Formal', 'Vintage', 'Minimalist', 'Boho', 'Preppy', 'Grunge', 'Techwear'];
+            return value.every(style => validStyles.includes(style));
+        })
+        .withMessage('Style preferences must be valid options.'),
+
+    // Color preferences validation (optional)
+    body('colorPreferences')
+        .optional()
+        .isArray()
+        .withMessage('Color preferences must be an array.')
+        .custom((value) => {
+            const validColors = ['Black', 'White', 'Gray', 'Navy', 'Brown', 'Beige', 'Red', 'Blue', 'Green', 'Pastels'];
+            return value.every(color => validColors.includes(color));
+        })
+        .withMessage('Color preferences must be valid options.'),
+
+    // Favorite brands validation (optional)
+    body('favoriteBrands')
+        .optional()
+        .isArray()
+        .withMessage('Favorite brands must be an array.')
+        .custom((value) => {
+            const validBrands = ['Nike', 'Adidas', 'Zara', 'H&M', 'Uniqlo', "Levi's", 'Patagonia', 'Vans', 'Converse', 'The North Face', 'Supreme', 'Stüssy', 'Other'];
+            return value.every(brand => validBrands.includes(brand));
+        })
+        .withMessage('Favorite brands must be valid options.'),
+
+    // Price range validation (optional)
+    body('priceRange')
         .optional()
         .isIn(['$0-50', '$50-100', '$100-200', '$200+'])
         .withMessage('Price range must be one of: $0-50, $50-100, $100-200, $200+.')
-]
+];
+
+export const validateItemIds = [
+    body('itemIds')
+        .exists({ checkFalsy: true }).withMessage('Item IDs are required.')
+        .isArray({ min: 1 }).withMessage('Item IDs must be a non-empty array.')
+        .custom((value) => {
+            return value.every(id => typeof id === 'string' && id.length > 0);
+        })
+        .withMessage('All item IDs must be non-empty strings.')
+];
