@@ -7,6 +7,7 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
     if (pathname === '/get-started') return 'get-started';
     if (pathname === '/shop') return 'shop';
     if (pathname === '/checkout') return 'checkout';
+    if (pathname === '/profile') return 'profile';
     return window.location.hash || "#home";
   });
   
@@ -62,6 +63,7 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
       else if (pathname === '/get-started') setRoute('get-started');
       else if (pathname === '/shop') setRoute('shop');
       else if (pathname === '/checkout') setRoute('checkout');
+      else if (pathname === '/profile') setRoute('profile');
       else setRoute(window.location.hash || "#home");
     };
 
@@ -214,6 +216,16 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
             className="text-[#a6a6b3] hover:text-white transition-colors text-sm font-medium"
           >
             Shop
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.pathname = "/profile";
+              window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            }}
+            className="text-[#a6a6b3] hover:text-white transition-colors text-sm font-medium"
+          >
+            Profile
           </button>
           <button
             onClick={handleLogout}
