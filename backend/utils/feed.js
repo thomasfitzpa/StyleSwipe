@@ -65,6 +65,15 @@ export const getTopFeatures = (preferences, count = 3) => {
 export const scoreItem = (user, item) => {
     let score = 0;
 
+    // Weights for preference-based bonuses (beyond tallies)
+    const weights = {
+        sizeFit: 3,
+        brandPreference: 2,
+        stylePreference: 1,
+        colorPreference: 1,
+        priceRangePreference: 1,
+    };
+
     if (item.brand) {
         score += user.preferenceTallies.brands.get(item.brand) || 0;
     }
@@ -92,6 +101,45 @@ export const scoreItem = (user, item) => {
 
     if (item.pattern) {
         score += user.preferenceTallies.patterns.get(item.pattern) || 0;
+    }
+
+    // Preference-based bonuses
+    const prefs = user.preferences || {};
+
+    // Size fit bonus: if any of the user's sizes are available
+    const userSizes = [];
+    if (prefs.shoeSize) userSizes.push(String(prefs.shoeSize));
+    if (prefs.shirtSize) userSizes.push(prefs.shirtSize);
+    if (prefs.pantsSize) userSizes.push(prefs.pantsSize);
+    if (prefs.shortSize) userSizes.push(prefs.shortSize);
+    
+    if (userSizes.length && item.availableSizes && item.availableSizes.some(sz => userSizes.includes(sz))) {
+        score += weights.sizeFit;
+    }
+
+    // Brand preference
+    if (prefs.favoriteBrands && Array.isArray(prefs.favoriteBrands) && item.brand && prefs.favoriteBrands.includes(item.brand)) {
+        score += weights.brandPreference;
+    }
+
+    // Style preferences
+    if (prefs.stylePreferences && Array.isArray(prefs.stylePreferences) && item.style && Array.isArray(item.style)) {
+        item.style.forEach(s => {
+            if (prefs.stylePreferences.includes(s)) score += weights.stylePreference;
+        });
+    }
+
+    // Color preferences
+    if (prefs.colorPreferences && Array.isArray(prefs.colorPreferences) && item.availableColors && Array.isArray(item.availableColors)) {
+        item.availableColors.forEach(c => {
+            if (prefs.colorPreferences.includes(c)) score += weights.colorPreference;
+        });
+    }
+
+    // Price range preference
+    if (prefs.priceRange && item.price !== undefined) {
+        const pr = getPriceRange(item.price);
+        if (pr === prefs.priceRange) score += weights.priceRangePreference;
     }
 
     return score;

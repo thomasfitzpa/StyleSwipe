@@ -2,7 +2,7 @@ import { UnauthorizedError, ValidationError } from '../errors/errors.js';
 import { validationResult } from 'express-validator';
 import User from '../models/userModel.js';
 import Item from '../models/itemModel.js';
-import { getPriceRange, updateTallies, getTopFeatures, scoreItem } from '../utils/feedUtils.js';
+import { getPriceRange, updateTallies, getTopFeatures, scoreItem } from '../utils/feed.js';
 
 export const getFeed = async (req, res) => {
     // User obtained from auth middleware
@@ -87,10 +87,56 @@ export const getFeed = async (req, res) => {
         }
     }
 
-    // If we have preference conditions add them to the main query
-    // Otherwise, just fetch random items
-    if (preferenceConditions.length > 0) {
+    // If no features obtained from tallies, fall back to user's explicit preferences
+    const prefs = existingUser.preferences || {};
+    const hasTopFeature = [
+        topBrands.length, topStyles.length, topColors.length,
+        topPriceRanges.length, topCategories.length, topPatterns.length
+    ].some(len => len > 0);
+
+    if (!hasTopFeature) {
+        const prefFallbackConditions = [];
+        if (prefs.favoriteBrands && prefs.favoriteBrands.length) {
+            prefFallbackConditions.push({ brand: { $in: prefs.favoriteBrands } });
+        }
+        if (prefs.stylePreferences && prefs.stylePreferences.length) {
+            prefFallbackConditions.push({ style: { $in: prefs.stylePreferences } });
+        }
+        if (prefs.colorPreferences && prefs.colorPreferences.length) {
+            prefFallbackConditions.push({ availableColors: { $in: prefs.colorPreferences } });
+        }
+        if (prefs.priceRange) {
+            switch (prefs.priceRange) {
+                case '$0-50':
+                    prefFallbackConditions.push({ price: { $gte: 0, $lt: 50 } });
+                    break;
+                case '$50-100':
+                    prefFallbackConditions.push({ price: { $gte: 50, $lt: 100 } });
+                    break;
+                case '$100-200':
+                    prefFallbackConditions.push({ price: { $gte: 100, $lt: 200 } });
+                    break;
+                case '$200+':
+                    prefFallbackConditions.push({ price: { $gte: 200 } });
+                    break;
+            }
+        }
+        if (prefFallbackConditions.length) {
+            candidateQuery.$or = prefFallbackConditions;
+        }
+    } else if (preferenceConditions.length > 0) {
         candidateQuery.$or = preferenceConditions;
+    }
+
+    // Only show items available in the user's size
+    const userSizes = [];
+    if (prefs.shoeSize) userSizes.push(String(prefs.shoeSize));
+    if (prefs.shirtSize) userSizes.push(prefs.shirtSize);
+    if (prefs.pantsSize) userSizes.push(prefs.pantsSize);
+    if (prefs.shortSize) userSizes.push(prefs.shortSize);
+    
+    if (userSizes.length > 0) {
+        candidateQuery.availableSizes = { $in: userSizes };
     }
 
     // Fetch a larger pool of candidate items to allow for both scoring and exploration
