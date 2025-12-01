@@ -229,7 +229,6 @@ export const updateAccount = async (req, res) => {
     if (bio !== undefined) existingUser.bio = bio;
     if (gender !== undefined) existingUser.gender = gender;
     if (dateOfBirth !== undefined) existingUser.dateOfBirth = dateOfBirth;
-    if (profilePicture !== undefined) existingUser.profilePicture = profilePicture;
 
     // Update preferences if provided
     if (shoeSize !== undefined) existingUser.preferences.shoeSize = shoeSize;
@@ -279,15 +278,15 @@ export const addToCart = async (req, res) => {
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        throw new ValidationError(errors.array(), 'Invalid move to cart data provided');
+        throw new ValidationError(errors.array(), 'Invalid add to cart data provided');
     }
 
     // User obtained from auth middleware
     const user = req.user;
     if (!user) throw new UnauthorizedError('Authentication required');
 
-    // Get item IDs to move from request body
-    const { itemIds } = req.body;
+    // Get item details from request body
+    const { itemId, selectedSize, selectedColor, quantity } = req.body;
 
     // Find the user
     const existingUser = await User.findById(user._id);
@@ -341,9 +340,8 @@ export const addToCart = async (req, res) => {
 
     await existingUser.save();
     res.status(200).json({ 
-        message: 'Items moved to cart successfully',
-        movedCount: itemsToMove.length,
-        skippedCount: itemIds.length - itemsToMove.length
+        message: 'Item added to cart successfully',
+        cartItemCount: existingUser.cart.length
     });
 };
 
