@@ -226,3 +226,64 @@ export const validateItemIds = [
         })
         .withMessage('All item IDs must be non-empty strings.')
 ];
+
+export const validateCartUpdate = [
+    body('itemId')
+        .exists({ checkFalsy: true }).withMessage('Item ID is required.')
+        .isString().withMessage('Item ID must be a string.')
+        .isLength({ min: 1 }).withMessage('Item ID cannot be empty.'),
+    
+    body('oldSize')
+        .exists({ checkFalsy: true }).withMessage('Old size is required.')
+        .isString().withMessage('Old size must be a string.'),
+    
+    body('oldColor')
+        .exists({ checkFalsy: true }).withMessage('Old color is required.')
+        .isString().withMessage('Old color must be a string.'),
+    
+    body('newSize')
+        .optional()
+        .isString().withMessage('New size must be a string.'),
+    
+    body('newColor')
+        .optional()
+        .isString().withMessage('New color must be a string.'),
+    
+    body('newQuantity')
+        .optional()
+        .isInt({ min: 1 }).withMessage('New quantity must be at least 1.')
+];
+
+export const validateCartItemRemoval = [
+    body('itemId')
+        .exists({ checkFalsy: true }).withMessage('Item ID is required.')
+        .isString().withMessage('Item ID must be a string.')
+        .isLength({ min: 1 }).withMessage('Item ID cannot be empty.'),
+    
+    body('selectedSize')
+        .exists({ checkFalsy: true }).withMessage('Selected size is required.')
+        .isString().withMessage('Selected size must be a string.'),
+    
+    body('selectedColor')
+        .exists({ checkFalsy: true }).withMessage('Selected color is required.')
+        .isString().withMessage('Selected color must be a string.')
+];
+
+export const validateAddToCart = [
+    body('itemId')
+        .exists({ checkFalsy: true }).withMessage('Item ID is required.')
+        .isString().withMessage('Item ID must be a string.')
+        .isLength({ min: 1 }).withMessage('Item ID cannot be empty.'),
+    
+    body('selectedSize')
+        .exists({ checkFalsy: true }).withMessage('Selected size is required.')
+        .isString().withMessage('Selected size must be a string.'),
+    
+    body('selectedColor')
+        .exists({ checkFalsy: true }).withMessage('Selected color is required.')
+        .isString().withMessage('Selected color must be a string.'),
+    
+    body('quantity')
+        .optional()
+        .isInt({ min: 1 }).withMessage('Quantity must be at least 1.')
+];
