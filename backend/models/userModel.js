@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema({
     bio: {type: String, trim: true},
     gender: {type: String, enum: ["Male", "Female", "Unisex"]},
     dateOfBirth: {type: Date},
-    profilePicture: {type: String, trim: true},
 
     // Swipes
     likedItems: [{type: mongoose.Schema.Types.ObjectId, ref: "Item"}],
@@ -22,9 +21,11 @@ const userSchema = new mongoose.Schema({
     // Shopping
     cart: [{
         item: {type: mongoose.Schema.Types.ObjectId, ref: "Item"},
+        selectedSize: {type: String, required: true},
+        selectedColor: {type: String, required: true},
+        quantity: {type: Number, default: 1, min: 1},
         dateAdded: {type: Date, default: Date.now}
-    }
-    ],
+    }],
     savedItems: [{type: mongoose.Schema.Types.ObjectId, ref: "Item"}],
 
     // Preferences captured during onboarding
@@ -55,6 +56,40 @@ const userSchema = new mongoose.Schema({
             default: []
         },
         priceRange: { type: String, enum: ["$0-50", "$50-100", "$100-200", "$200+"] }
+    },
+
+    // Preference tallies for personalized feed
+    preferenceTallies: {
+        brands: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        },
+        styles: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        },
+        colors: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        },
+        priceRanges: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        },
+        categories: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        },
+        patterns: {
+            type: Map,
+            of: Number,
+            default: () => new Map()
+        }
     },
 
     // Metadata
