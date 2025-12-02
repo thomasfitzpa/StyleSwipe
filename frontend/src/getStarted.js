@@ -115,6 +115,7 @@ export default function GetStartedPage() {
 
         localStorage.setItem("accessToken", data.accessToken);
         localStorage.setItem("refreshToken", data.refreshToken);
+        window.dispatchEvent(new Event("login"));
 
         setToast({ message: "Login successful! Redirecting...", type: "success" });
         

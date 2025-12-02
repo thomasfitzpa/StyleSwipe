@@ -27,16 +27,22 @@ export default function App() {
   const shopCartRef = useRef(null);
   
   useEffect(() => {
-    // Check if user is logged in
     const checkLogin = () => {
       const token = localStorage.getItem("accessToken");
       setIsLoggedIn(!!token);
     };
+
     checkLogin();
-    
-    // Listen for storage changes
+
     window.addEventListener("storage", checkLogin);
-    return () => window.removeEventListener("storage", checkLogin);
+    window.addEventListener("focus", checkLogin); // ✅ FIX
+    window.addEventListener("login", checkLogin); // ✅ FIX
+
+    return () => {
+      window.removeEventListener("storage", checkLogin);
+      window.removeEventListener("focus", checkLogin);
+      window.removeEventListener("login", checkLogin);
+    };
   }, []);
   
   useEffect(() => {
@@ -101,7 +107,7 @@ export default function App() {
     );
   }
   // Shop page for logged-in users
-  if (route === "shop" || (isLoggedIn && route === "#home")) {
+  if (route === "shop") {
     return (
       <div className="min-h-screen w-full">
         <div id="top" />
@@ -329,7 +335,8 @@ export default function App() {
 function Hero() {
   const goGetStarted = (e) => {
     e.preventDefault();
-    window.location.pathname = "/get-started";
+    const isLoggedIn = !!localStorage.getItem("accessToken");
+    window.location.pathname = isLoggedIn ? "/shop" : "/get-started";
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 

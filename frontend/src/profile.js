@@ -1,5 +1,26 @@
 import React, { useState, useEffect } from "react";
 
+// Helper to normalize profile shape from API
+const normalizeProfile = (data = {}) => ({
+  username: data.username || "",
+  email: data.email || "",
+  gender: data.gender || "",
+  shoeSize: data.shoeSize || "",
+  shirtSize: data.shirtSize || "",
+  shortSize: data.shortSize || "",
+  pantsSize: data.pantsSize || "",
+  stylePreferences: Array.isArray(data.stylePreferences)
+    ? data.stylePreferences
+    : [],
+  favoriteBrands: Array.isArray(data.favoriteBrands)
+    ? data.favoriteBrands
+    : [],
+  priceRange: data.priceRange || "",
+  colorPreferences: Array.isArray(data.colorPreferences)
+    ? data.colorPreferences
+    : [],
+});
+
 // Toast Notification Component
 function Toast({ message, type, onClose }) {
   useEffect(() => {
@@ -14,11 +35,15 @@ function Toast({ message, type, onClose }) {
 
   return (
     <div className="fixed bottom-5 right-5 z-[9999] animate-slide-in pointer-events-auto">
-      <div className={`${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-3 max-w-[350px]`}>
+      <div
+        className={`${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl flex items-center gap-3 max-w-[350px]`}
+      >
         <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/25 flex items-center justify-center font-bold text-sm">
           {icon}
         </div>
-        <div className="flex-1 text-sm font-medium leading-snug">{message}</div>
+        <div className="flex-1 text-sm font-medium leading-snug">
+          {message}
+        </div>
         <button
           onClick={onClose}
           className="flex-shrink-0 w-5 h-5 rounded-full hover:bg-white/20 transition-colors flex items-center justify-center text-lg leading-none font-bold"
@@ -36,22 +61,15 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  
-  const [userData, setUserData] = useState({
-    username: "",
-    email: "",
-    gender: "",
-    shoeSize: "",
-    shirtSize: "",
-    shortSize: "",
-    pantsSize: "",
-    stylePreferences: [],
-    favoriteBrands: [],
-    priceRange: "",
-    colorPreferences: [],
-  });
 
-  const [formData, setFormData] = useState({...userData});
+  const [userData, setUserData] = useState(
+    normalizeProfile({
+      username: "",
+      email: "",
+    })
+  );
+
+  const [formData, setFormData] = useState(userData);
 
   const shoeSizes = Array.from({ length: 20 }, (_, i) => i + 4);
   const shirtSizes = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -102,28 +120,63 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchUserProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchUserProfile = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/users/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        setToast({
+          message: "You need to log in to view your profile.",
+          type: "error",
+        });
+        window.location.pathname = "/get-started";
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:5000/api/users/profile",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+        if (response.status === 401 || response.status === 403) {
+          // Token invalid/expired, kick them to login
+          localStorage.removeItem("accessToken");
+          setToast({
+            message: "Session expired. Please log in again.",
+            type: "error",
+          });
+          window.location.pathname = "/get-started";
+          return;
+        }
+
+        let errorMsg = "Failed to fetch profile";
+        try {
+          const error = await response.json();
+          if (error && error.message) errorMsg = error.message;
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
-      setUserData(data);
-      setFormData(data);
+      const normalized = normalizeProfile(data);
+      setUserData(normalized);
+      setFormData(normalized);
     } catch (error) {
-      console.error('Error fetching profile:', error);
-      setToast({ message: 'Failed to load profile data', type: 'error' });
+      console.error("Error fetching profile:", error);
+      setToast({
+        message: error.message || "Failed to load profile data",
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -145,46 +198,78 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          gender: formData.gender,
-          shoeSize: formData.shoeSize,
-          shirtSize: formData.shirtSize,
-          shortSize: formData.shortSize,
-          pantsSize: formData.pantsSize,
-          stylePreferences: formData.stylePreferences,
-          favoriteBrands: formData.favoriteBrands,
-          priceRange: formData.priceRange,
-          colorPreferences: formData.colorPreferences,
-        })
-      });
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        setToast({
+          message: "You need to log in to update your profile.",
+          type: "error",
+        });
+        window.location.pathname = "/get-started";
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:5000/api/users/profile",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            gender: formData.gender,
+            shoeSize: formData.shoeSize,
+            shirtSize: formData.shirtSize,
+            shortSize: formData.shortSize,
+            pantsSize: formData.pantsSize,
+            stylePreferences: formData.stylePreferences,
+            favoriteBrands: formData.favoriteBrands,
+            priceRange: formData.priceRange,
+            colorPreferences: formData.colorPreferences,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update profile');
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem("accessToken");
+          setToast({
+            message: "Session expired. Please log in again.",
+            type: "error",
+          });
+          window.location.pathname = "/get-started";
+          return;
+        }
+
+        let errorMsg = "Failed to update profile";
+        try {
+          const error = await response.json();
+          if (error && error.message) errorMsg = error.message;
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(errorMsg);
       }
 
       const updatedData = await response.json();
-      setUserData(updatedData);
-      setFormData(updatedData);
+      const normalized = normalizeProfile(updatedData);
+      setUserData(normalized);
+      setFormData(normalized);
       setEditMode(false);
-      setToast({ message: 'Profile updated successfully!', type: 'success' });
+      setToast({ message: "Profile updated successfully!", type: "success" });
     } catch (error) {
-      console.error('Error updating profile:', error);
-      setToast({ message: error.message || 'Failed to update profile', type: 'error' });
+      console.error("Error updating profile:", error);
+      setToast({
+        message: error.message || "Failed to update profile",
+        type: "error",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setFormData({...userData});
+    setFormData({ ...userData });
     setEditMode(false);
   };
 
@@ -208,7 +293,7 @@ export default function ProfilePage() {
           onClose={() => setToast(null)}
         />
       )}
-      
+
       <div className="min-h-screen w-full px-4 md:px-6 py-8 md:py-12">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
@@ -261,7 +346,7 @@ export default function ProfilePage() {
             <h2 className="text-xl md:text-2xl font-bold text-white mb-6">
               Basic Info
             </h2>
-            
+
             <div>
               <label className="block text-[#f7f7fb] font-semibold mb-4 text-base">
                 Gender
@@ -270,13 +355,19 @@ export default function ProfilePage() {
                 {["Male", "Female", "Unisex"].map((option) => (
                   <button
                     key={option}
-                    onClick={() => editMode && handleInputChange("gender", option)}
+                    onClick={() =>
+                      editMode && handleInputChange("gender", option)
+                    }
                     disabled={!editMode}
                     className={`py-3 px-4 rounded-xl border-2 transition-all duration-300 ${
                       formData.gender === option
                         ? "border-primary bg-primary/20 text-white"
                         : "border-white/10 bg-white/[0.04] text-[#a6a6b3]"
-                    } ${editMode ? 'cursor-pointer hover:border-primary/30' : 'cursor-default opacity-70'}`}
+                    } ${
+                      editMode
+                        ? "cursor-pointer hover:border-primary/30"
+                        : "cursor-default opacity-70"
+                    }`}
                   >
                     {option}
                   </button>
@@ -290,7 +381,7 @@ export default function ProfilePage() {
             <h2 className="text-xl md:text-2xl font-bold text-white mb-6">
               Your Sizes
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-[#f7f7fb] font-semibold mb-3">
@@ -298,9 +389,13 @@ export default function ProfilePage() {
                 </label>
                 <select
                   value={formData.shoeSize}
-                  onChange={(e) => handleInputChange("shoeSize", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("shoeSize", e.target.value)
+                  }
                   disabled={!editMode}
-                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${!editMode && 'opacity-70 cursor-not-allowed'}`}
+                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${
+                    !editMode && "opacity-70 cursor-not-allowed"
+                  }`}
                 >
                   <option value="">Select size</option>
                   {shoeSizes.map((size) => (
@@ -317,9 +412,13 @@ export default function ProfilePage() {
                 </label>
                 <select
                   value={formData.shirtSize}
-                  onChange={(e) => handleInputChange("shirtSize", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("shirtSize", e.target.value)
+                  }
                   disabled={!editMode}
-                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${!editMode && 'opacity-70 cursor-not-allowed'}`}
+                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${
+                    !editMode && "opacity-70 cursor-not-allowed"
+                  }`}
                 >
                   <option value="">Select size</option>
                   {shirtSizes.map((size) => (
@@ -336,9 +435,13 @@ export default function ProfilePage() {
                 </label>
                 <select
                   value={formData.pantsSize}
-                  onChange={(e) => handleInputChange("pantsSize", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("pantsSize", e.target.value)
+                  }
                   disabled={!editMode}
-                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${!editMode && 'opacity-70 cursor-not-allowed'}`}
+                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${
+                    !editMode && "opacity-70 cursor-not-allowed"
+                  }`}
                 >
                   <option value="">Select size</option>
                   {pantsSizes.map((size) => (
@@ -355,9 +458,13 @@ export default function ProfilePage() {
                 </label>
                 <select
                   value={formData.shortSize}
-                  onChange={(e) => handleInputChange("shortSize", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("shortSize", e.target.value)
+                  }
                   disabled={!editMode}
-                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${!editMode && 'opacity-70 cursor-not-allowed'}`}
+                  className={`w-full py-3.5 px-4 border-[1.5px] border-white/12 rounded-xl text-base transition-all bg-white text-black focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(155,140,255,0.1)] ${
+                    !editMode && "opacity-70 cursor-not-allowed"
+                  }`}
                 >
                   <option value="">Select size</option>
                   {shortSizes.map((size) => (
@@ -375,7 +482,7 @@ export default function ProfilePage() {
             <h2 className="text-xl md:text-2xl font-bold text-white mb-6">
               Style Preferences
             </h2>
-            
+
             <div className="mb-8">
               <label className="block text-[#f7f7fb] font-semibold mb-4 text-base">
                 Your Styles
@@ -384,13 +491,19 @@ export default function ProfilePage() {
                 {styleOptions.map((style) => (
                   <button
                     key={style}
-                    onClick={() => editMode && handleToggleArray("stylePreferences", style)}
+                    onClick={() =>
+                      editMode && handleToggleArray("stylePreferences", style)
+                    }
                     disabled={!editMode}
                     className={`py-3 px-4 rounded-xl border-2 transition-all duration-300 text-sm ${
                       formData.stylePreferences.includes(style)
                         ? "border-primary bg-primary/20 text-white"
                         : "border-white/10 bg-white/[0.04] text-[#a6a6b3]"
-                    } ${editMode ? 'cursor-pointer hover:border-primary/30' : 'cursor-default opacity-70'}`}
+                    } ${
+                      editMode
+                        ? "cursor-pointer hover:border-primary/30"
+                        : "cursor-default opacity-70"
+                    }`}
                   >
                     {style}
                   </button>
@@ -406,13 +519,19 @@ export default function ProfilePage() {
                 {colorOptions.map((color) => (
                   <button
                     key={color}
-                    onClick={() => editMode && handleToggleArray("colorPreferences", color)}
+                    onClick={() =>
+                      editMode && handleToggleArray("colorPreferences", color)
+                    }
                     disabled={!editMode}
                     className={`py-3 px-4 rounded-xl border-2 transition-all duration-300 text-sm ${
                       formData.colorPreferences.includes(color)
                         ? "border-primary bg-primary/20 text-white"
                         : "border-white/10 bg-white/[0.04] text-[#a6a6b3]"
-                    } ${editMode ? 'cursor-pointer hover:border-primary/30' : 'cursor-default opacity-70'}`}
+                    } ${
+                      editMode
+                        ? "cursor-pointer hover:border-primary/30"
+                        : "cursor-default opacity-70"
+                    }`}
                   >
                     {color}
                   </button>
@@ -426,7 +545,7 @@ export default function ProfilePage() {
             <h2 className="text-xl md:text-2xl font-bold text-white mb-6">
               Brands & Budget
             </h2>
-            
+
             <div className="mb-8">
               <label className="block text-[#f7f7fb] font-semibold mb-4 text-base">
                 Favorite Brands
@@ -435,13 +554,19 @@ export default function ProfilePage() {
                 {popularBrands.map((brand) => (
                   <button
                     key={brand}
-                    onClick={() => editMode && handleToggleArray("favoriteBrands", brand)}
+                    onClick={() =>
+                      editMode && handleToggleArray("favoriteBrands", brand)
+                    }
                     disabled={!editMode}
                     className={`py-3 px-4 rounded-xl border-2 transition-all duration-300 text-sm ${
                       formData.favoriteBrands.includes(brand)
                         ? "border-primary bg-primary/20 text-white"
                         : "border-white/10 bg-white/[0.04] text-[#a6a6b3]"
-                    } ${editMode ? 'cursor-pointer hover:border-primary/30' : 'cursor-default opacity-70'}`}
+                    } ${
+                      editMode
+                        ? "cursor-pointer hover:border-primary/30"
+                        : "cursor-default opacity-70"
+                    }`}
                   >
                     {brand}
                   </button>
@@ -457,13 +582,19 @@ export default function ProfilePage() {
                 {["$0-50", "$50-100", "$100-200", "$200+"].map((range) => (
                   <button
                     key={range}
-                    onClick={() => editMode && handleInputChange("priceRange", range)}
+                    onClick={() =>
+                      editMode && handleInputChange("priceRange", range)
+                    }
                     disabled={!editMode}
                     className={`py-4 px-6 rounded-xl border-2 transition-all duration-300 ${
                       formData.priceRange === range
                         ? "border-primary bg-primary/20 text-white"
                         : "border-white/10 bg-white/[0.04] text-[#a6a6b3]"
-                    } ${editMode ? 'cursor-pointer hover:border-primary/30' : 'cursor-default opacity-70'}`}
+                    } ${
+                      editMode
+                        ? "cursor-pointer hover:border-primary/30"
+                        : "cursor-default opacity-70"
+                    }`}
                   >
                     {range}
                   </button>

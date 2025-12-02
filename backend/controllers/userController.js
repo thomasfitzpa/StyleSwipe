@@ -3,141 +3,184 @@ import { validationResult } from 'express-validator';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token.js';
 import User from '../models/userModel.js';
 
-// Create and Save a new User
+//register
 export const register = async (req, res) => {
-    // Validate request
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new ValidationError(errors.array(), 'Invalid user data provided');
-    }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new ValidationError(errors.array(), 'Invalid user data provided');
+  }
 
-    const { username, email, password } = req.body;
+  const { username, email, password } = req.body;
 
-    // Check if user with the same username or email already exists
-    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-    if (existingUser) {
-        throw new ConflictError('Username or email already in use');
-    }
+  const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+  if (existingUser) {
+    throw new ConflictError('Username or email already in use');
+  }
 
-    const user = new User({ username, email, password });
-    await user.save();
-    res.status(201).json({ message: 'User registered successfully', userId: user._id });
+  const user = new User({ username, email, password });
+  await user.save();
+
+  res.status(201).json({ message: 'User registered successfully', userId: user._id });
 };
 
+//login
 export const login = async (req, res) => {
-    // Validate request
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new ValidationError(errors.array(), 'Invalid login data provided');
-    }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new ValidationError(errors.array(), 'Invalid login data provided');
+  }
 
-    // Authenticate user
-    const { identifier, password } = req.body;
-    const user = await User.findOne({ $or: [{ username: identifier }, { email: identifier }] }).select('+password');
-    if (!user) throw new UnauthorizedError('No user found with this username or email');
+  const { identifier, password } = req.body;
 
-    if (!(await user.comparePassword(password))) {
-        throw new UnauthorizedError('Password is incorrect');
-    }
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }]
+  }).select('+password');
 
-    // Generate tokens
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-    user.refreshToken = refreshToken;
-    user.lastActive = Date.now();
-    await user.save();
+  if (!user) throw new UnauthorizedError('No user found with this username or email');
 
-    res.status(200).json({ accessToken, refreshToken });
+  if (!(await user.comparePassword(password))) {
+    throw new UnauthorizedError('Password is incorrect');
+  }
+
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  user.refreshToken = refreshToken;
+  user.lastActive = Date.now();
+  await user.save();
+
+  res.status(200).json({ accessToken, refreshToken });
 };
 
-
+//refresh token
 export const refresh = async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-        throw new UnauthorizedError('No refresh token in request');
-    }
-    const decoded = await verifyRefreshToken(refreshToken);
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    throw new UnauthorizedError('No refresh token in request');
+  }
 
-    // Find user by ID from token
-    const user = await User.findById(decoded.id);
-    if (!user || user.refreshToken !== refreshToken) {
-        throw new UnauthorizedError('No user with this refresh token found');
-    }
+  const decoded = await verifyRefreshToken(refreshToken);
 
-    // Check inactivity timeout (14 days)
-    if (user.lastActive < Date.now() - 14*24*60*60*1000) {
-        user.refreshToken = null;
-        await user.save();
-        throw new UnauthorizedError('Session timed out due to inactivity');
-    }
+  const user = await User.findById(decoded.id);
+  if (!user || user.refreshToken !== refreshToken) {
+    throw new UnauthorizedError('No user with this refresh token found');
+  }
 
-    // Issue new tokens
-    const accessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-    user.refreshToken = newRefreshToken;
-    user.lastActive = Date.now();
+  if (user.lastActive < Date.now() - 14 * 24 * 60 * 60 * 1000) {
+    user.refreshToken = null;
     await user.save();
+    throw new UnauthorizedError('Session timed out due to inactivity');
+  }
+  const accessToken = generateAccessToken(user);
+  const newRefreshToken = generateRefreshToken(user);
 
-    res.status(200).json({ accessToken, refreshToken: newRefreshToken });
+  user.refreshToken = newRefreshToken;
+  user.lastActive = Date.now();
+  await user.save();
+
+  res.status(200).json({ accessToken, refreshToken: newRefreshToken });
 };
 
 export const logout = async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) {
-        throw new UnauthorizedError('No refresh token in request');
-    }
-    const decoded = await verifyRefreshToken(refreshToken);
+  const { refreshToken } = req.body;
+  if (!refreshToken) throw new UnauthorizedError('No refresh token in request');
+  const decoded = await verifyRefreshToken(refreshToken);
+  const user = await User.findById(decoded.id);
+  if (!user || user.refreshToken !== refreshToken) {
+    throw new UnauthorizedError('No user with this refresh token found');
+  }
+  user.refreshToken = null;
+  await user.save();
 
-    // Find user by ID from token
-    const user = await User.findById(decoded.id);
-    if (!user || user.refreshToken !== refreshToken) {
-        throw new UnauthorizedError('No user with this refresh token found');
-    }
-
-    // Remove the refresh token
-    user.refreshToken = null;
-    await user.save();
-    res.status(200).json({ message: 'Logged out successfully' });
+  res.status(200).json({ message: 'Logged out successfully' });
 };
 
 export const onboarding = async (req, res) => {
-    // Validate request
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        throw new ValidationError(errors.array(), 'Invalid onboarding data provided');
-    }
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new ValidationError(errors.array(), 'Invalid onboarding data provided');
+  }
+  const user = req.user;
+  if (!user) throw new UnauthorizedError('Authentication required');
+  const {
+    gender,
+    shoeSize,
+    shirtSize,
+    shortSize,
+    pantsSize,
+    stylePreferences,
+    colorPreferences,
+    favoriteBrands,
+    priceRange,
+  } = req.body;
+  if (gender) user.gender = gender;
+  user.preferences = {
+    shoeSize: shoeSize || user.preferences?.shoeSize,
+    shirtSize: shirtSize || user.preferences?.shirtSize,
+    pantsSize: pantsSize || user.preferences?.pantsSize,
+    shortSize: shortSize || user.preferences?.shortSize,
+    stylePreferences: stylePreferences || user.preferences?.stylePreferences,
+    colorPreferences: colorPreferences || user.preferences?.colorPreferences,
+    favoriteBrands: favoriteBrands || user.preferences?.favoriteBrands,
+    priceRange: priceRange || user.preferences?.priceRange,
+  };
+  await user.save();
+  res.status(200).json({ message: 'Onboarding completed successfully' });
+};
+// get profile
+export const getProfile = async (req, res) => {
+  const user = req.user;
+  if (!user) throw new UnauthorizedError('Authentication required');
 
-    // User obtained from auth middleware
-    const user = req.user;
-    if (!user) throw new UnauthorizedError('Authentication required');
+  res.status(200).json({
+    username: user.username,
+    email: user.email,
+    gender: user.gender || '',
+    shoeSize: user.preferences?.shoeSize || '',
+    shirtSize: user.preferences?.shirtSize || '',
+    shortSize: user.preferences?.shortSize || '',
+    pantsSize: user.preferences?.pantsSize || '',
+    stylePreferences: user.preferences?.stylePreferences || [],
+    favoriteBrands: user.preferences?.favoriteBrands || [],
+    colorPreferences: user.preferences?.colorPreferences || [],
+    priceRange: user.preferences?.priceRange || '',
+  });
+};
 
-    // Get onboarding data from request body
-    const {
-        gender,
-        shoeSize,
-        shirtSize,
-        shortSize,
-        pantsSize,
-        stylePreferences,
-        colorPreferences,
-        favoriteBrands,
-        priceRange,
-    } = req.body;
+//update profile
+export const updateProfile = async (req, res) => {
+  const user = req.user;
+  if (!user) throw new UnauthorizedError('Authentication required');
 
-    // Update user preferences
-    if (gender) user.gender = gender;
+  const {
+    gender,
+    shoeSize,
+    shirtSize,
+    shortSize,
+    pantsSize,
+    stylePreferences,
+    favoriteBrands,
+    colorPreferences,
+    priceRange,
+  } = req.body;
 
-    user.preferences = {
-        shoeSize: shoeSize || user.preferences.shoeSize,
-        shirtSize: shirtSize || user.preferences.shirtSize,
-        pantsSize: pantsSize || user.preferences.pantsSize,
-        shortSize: shortSize || user.preferences.shortSize,
-        stylePreferences: stylePreferences || user.preferences.stylePreferences,
-        colorPreferences: colorPreferences || user.preferences.colorPreferences,
-        favoriteBrands: favoriteBrands || user.preferences.favoriteBrands,
-        priceRange: priceRange || user.preferences.priceRange,
-    };
+  if (gender !== undefined) user.gender = gender;
 
-    await user.save();
-    res.status(200).json({ message: 'Onboarding completed successfully' });
+  user.preferences = {
+    shoeSize: shoeSize ?? user.preferences?.shoeSize,
+    shirtSize: shirtSize ?? user.preferences?.shirtSize,
+    shortSize: shortSize ?? user.preferences?.shortSize,
+    pantsSize: pantsSize ?? user.preferences?.pantsSize,
+    stylePreferences: stylePreferences ?? user.preferences?.stylePreferences,
+    favoriteBrands: favoriteBrands ?? user.preferences?.favoriteBrands,
+    colorPreferences: colorPreferences ?? user.preferences?.colorPreferences,
+    priceRange: priceRange ?? user.preferences?.priceRange,
+  };
+
+  await user.save();
+
+  res.status(200).json({
+    gender: user.gender,
+    ...user.preferences,
+  });
 };
