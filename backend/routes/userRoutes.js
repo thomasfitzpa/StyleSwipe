@@ -1,4 +1,20 @@
 import { Router } from 'express';
+import {
+  validateUserCreation,
+  validateUserLogin,
+  validateUserOnboarding,
+} from '../validator/userValidator.js';
+
+import {
+  register,
+  login,
+  refresh,
+  logout,
+  onboarding,
+  getProfile,
+  updateProfile,
+} from '../controllers/userController.js';
+
 import { 
     validateUserCreation, 
     validateUserLogin,
@@ -37,6 +53,12 @@ userRouter.post('/logout', logout);
 // Onboarding page route
 userRouter.post('/onboarding', authenticateToken, validateUserOnboarding, onboarding);
 
+
+//profile routes
+userRouter.get('/profile', authenticateToken, getProfile);
+userRouter.put('/profile', authenticateToken, updateProfile);
+
+export default userRouter;
 // Account page routes
 userRouter.get('/account', authenticateToken, getAccountDetails);
 userRouter.get('/account/liked-items', authenticateToken, getLikedItems);

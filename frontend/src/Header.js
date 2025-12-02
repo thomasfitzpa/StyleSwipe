@@ -78,9 +78,13 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
 
   const goHome = (e) => {
     e?.preventDefault();
+
+    // ✅ ALWAYS go to the main marketing page
     window.location.pathname = "/";
+
     window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
+
 
   const goShop = (e) => {
     e?.preventDefault();
@@ -156,51 +160,68 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
     );
   }
 
-  // Shop page - show cart button instead of login
+  // ✅ FIXED: Shop page - cart + profile + logout
   if (route === "shop") {
     return (
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-gradient-to-b from-[rgba(12,12,17,0.85)] to-[rgba(12,12,17,0.65)] border-b border-white/10 shadow-lg">
-        <a className="font-bold text-lg flex items-center gap-3 transition-transform hover:-translate-y-0.5 tracking-tight" href="/" onClick={goHome}>
-          <span className="inline-grid place-items-center w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-secondary text-dark-bg font-extrabold shadow-lg shadow-primary/30">SS</span>
+        
+        <a
+          className="font-bold text-lg flex items-center gap-3 transition-transform hover:-translate-y-0.5 tracking-tight"
+          href="/"
+          onClick={goHome}
+        >
+          <span className="inline-grid place-items-center w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-secondary text-dark-bg font-extrabold shadow-lg shadow-primary/30">
+            SS
+          </span>
           StyleSwipe
         </a>
-        <button
-          onClick={() => {
-            if (onCartClick) onCartClick();
-            else {
-              // Fallback: trigger custom event
-              window.dispatchEvent(new CustomEvent('openCart'));
-            }
-          }}
-          className={`relative inline-flex items-center px-5 py-2.5 rounded-lg font-bold text-sm bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 ${
-            cartPulse ? 'animate-pulse scale-110' : ''
-          }`}
-        >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+
+        <div className="flex items-center gap-4">
+
+          {/* ✅ PROFILE BUTTON */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.pathname = "/profile";
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="text-[#a6a6b3] hover:text-white transition-colors text-sm font-medium"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-          Cart
-          {cartCount > 0 && (
-            <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center transition-all ${
-              cartPulse ? 'scale-125 ring-2 ring-red-400' : ''
-            }`}>
-              {cartCount}
-            </span>
-          )}
-        </button>
+            Profile
+          </button>
+
+          {/* ✅ CART BUTTON */}
+          <button
+            onClick={() => {
+              if (onCartClick) onCartClick();
+              else window.dispatchEvent(new CustomEvent('openCart'));
+            }}
+            className={`relative inline-flex items-center px-5 py-2.5 rounded-lg font-bold text-sm bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45 ${
+              cartPulse ? 'animate-pulse scale-110' : ''
+            }`}
+          >
+            Cart
+            {cartCount > 0 && (
+              <span className={`absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center transition-all ${
+                cartPulse ? 'scale-125 ring-2 ring-red-400' : ''
+              }`}>
+                {cartCount}
+              </span>
+            )}
+          </button>
+
+          {/* ✅ LOGOUT BUTTON */}
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center px-5 py-2.5 rounded-lg font-bold text-sm bg-white/[0.1] border border-white/20 text-white hover:bg-white/[0.15] transition-all"
+          >
+            Logout
+          </button>
+        </div>
       </nav>
     );
   }
+
 
   // Default nav for home page
   return (
