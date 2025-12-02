@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from "react";
+import { serverLogout } from "./auth";
 
 export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
   const [route, setRoute] = useState(() => {
     const pathname = window.location.pathname;
-    if (pathname === '/onboarding') return 'onboarding';
+    const hasOnboarded = (() => {
+      try {
+        return localStorage.getItem('hasOnboarded') === 'true';
+      } catch (_) {
+        return false;
+      }
+    })();
+    if (pathname === '/onboarding') return hasOnboarded ? 'shop' : 'onboarding';
     if (pathname === '/get-started') return 'get-started';
     if (pathname === '/shop') return 'shop';
     if (pathname === '/checkout') return 'checkout';
@@ -59,7 +67,19 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
   useEffect(() => {
     const updateRoute = () => {
       const pathname = window.location.pathname;
-      if (pathname === '/onboarding') setRoute('onboarding');
+      const hasOnboarded = (() => {
+        try {
+          return localStorage.getItem('hasOnboarded') === 'true';
+        } catch (_) {
+          return false;
+        }
+      })();
+      if (pathname === '/onboarding') {
+        setRoute(hasOnboarded ? 'shop' : 'onboarding');
+        if (hasOnboarded) {
+          window.history.replaceState({}, '', '/shop');
+        }
+      }
       else if (pathname === '/get-started') setRoute('get-started');
       else if (pathname === '/shop') setRoute('shop');
       else if (pathname === '/checkout') setRoute('checkout');
@@ -88,12 +108,14 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
     window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    if (onLoginChange) onLoginChange(false);
-    window.location.pathname = "/";
-    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  const handleLogout = async () => {
+    try {
+      await serverLogout();
+    } finally {
+      if (onLoginChange) onLoginChange(false);
+      window.location.pathname = "/";
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
   };
 
   // Get started page - no right side content

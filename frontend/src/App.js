@@ -7,14 +7,21 @@ import OnboardingPage from "./onboarding";
 import Header from "./Header";
 import ShopPage from "./Shop";
 import CheckoutPage from "./Checkout";
-import ProfilePage from "./Profile";
+import ProfilePage from "./profile";
 
 
 export default function App() {
   // simple hash-based router + pathname routing
   const getCurrentRoute = () => {
     const pathname = window.location.pathname;
-    if (pathname === '/onboarding') return 'onboarding';
+    const hasOnboarded = (() => {
+      try {
+        return localStorage.getItem('hasOnboarded') === 'true';
+      } catch (_) {
+        return false;
+      }
+    })();
+    if (pathname === '/onboarding') return hasOnboarded ? 'shop' : 'onboarding';
     if (pathname === '/get-started') return 'get-started';
     if (pathname === '/shop') return 'shop';
     if (pathname === '/checkout') return 'checkout';
@@ -60,6 +67,13 @@ export default function App() {
       window.removeEventListener("popstate", onPopState);
     };
   }, []);
+
+  // Normalize URL if route resolves to shop but URL still says /onboarding
+  useEffect(() => {
+    if (route === 'shop' && window.location.pathname === '/onboarding') {
+      window.history.replaceState({}, '', '/shop');
+    }
+  }, [route]);
 
   if (route === "#get-started" || route === "get-started") {
     return (

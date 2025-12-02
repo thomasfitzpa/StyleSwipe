@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from "react";
 import Header from "./Header";
+import { apiFetch } from "./auth";
+
+// Helper to normalize image URLs
+const normalizeImageUrl = (url) => {
+  if (!url) return url;
+  const s3Match = /^s3:\/\/([^\/]+)\/(.+)$/.exec(url);
+  if (s3Match) {
+    const bucket = s3Match[1];
+    const key = s3Match[2];
+    return `https://${bucket}.s3.amazonaws.com/${key}`;
+  }
+  const gcsMatch = /^gs:\/\/([^\/]+)\/(.+)$/.exec(url);
+  if (gcsMatch) {
+    const bucket = gcsMatch[1];
+    const key = gcsMatch[2];
+    return `https://storage.googleapis.com/${bucket}/${key}`;
+  }
+  return url;
+};
 
 export default function CheckoutPage({ isLoggedIn, onLoginChange }) {
   const [cart, setCart] = useState([]);
@@ -19,10 +38,17 @@ export default function CheckoutPage({ isLoggedIn, onLoginChange }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("shoppingCart");
-    if (saved) {
-      setCart(JSON.parse(saved));
-    }
+    const loadCart = async () => {
+      try {
+        const res = await apiFetch("http://localhost:5000/api/users/cart");
+        if (!res.ok) return;
+        const data = await res.json();
+        setCart(data.items || []);
+      } catch (e) {
+        console.error("Failed to load cart", e);
+      }
+    };
+    loadCart();
   }, []);
 
   const getTotalPrice = () => {
@@ -128,13 +154,11 @@ export default function CheckoutPage({ isLoggedIn, onLoginChange }) {
 
     setIsSubmitting(true);
     
-    // Simulate payment processing (fake - doesn't actually process)
+    // Simulate payment processing (demo only)
     setTimeout(() => {
       setIsSubmitting(false);
       alert("Payment processing simulation complete! (This is a demo - no actual payment was processed)");
-      // In a real app, you would redirect to a success page
-      // For now, just clear the cart and go back to shop
-      localStorage.removeItem("shoppingCart");
+      // In a real app, you would notify backend to clear cart
       window.location.pathname = "/shop";
     }, 2000);
   };
@@ -183,21 +207,21 @@ export default function CheckoutPage({ isLoggedIn, onLoginChange }) {
 
               <div className="space-y-4 mb-6">
                 {cart.map((item) => (
-                  <div key={item.id} className="flex gap-4">
+                  <div key={`${item.itemId || item.item}_${item.selectedSize}_${item.selectedColor}`} className="flex gap-4">
                     <img
-                      src={item.image}
-                      alt={item.name}
+                      src={normalizeImageUrl((item.item && Array.isArray(item.item.images) && item.item.images[0]) || item.image)}
+                      alt={(item.item && item.item.name) || item.name || item.itemName}
                       className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-lg"
                     />
                     <div className="flex-1">
                       <h3 className="font-bold text-white text-sm md:text-base mb-1">
-                        {item.name}
+                        {(item.item && item.item.name) || item.name || item.itemName}
                       </h3>
                       <p className="text-[#a6a6b3] text-xs md:text-sm mb-1">
-                        Quantity: {item.quantity}
+                        Quantity: {item.quantity || 1} • {item.selectedSize} • {item.selectedColor}
                       </p>
                       <p className="text-white font-semibold text-sm md:text-base">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        ${(Number((item.item && item.item.price) || item.price || 0) * (item.quantity || 1)).toFixed(2)}
                       </p>
                     </div>
                   </div>

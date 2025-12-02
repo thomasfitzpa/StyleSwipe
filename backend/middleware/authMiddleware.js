@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { UnauthorizedError, ForbiddenError } from '../errors/errors.js';
+import { UnauthorizedError } from '../errors/errors.js';
 import User from '../models/userModel.js';
 
 
@@ -21,6 +21,7 @@ export const authenticateToken = async (req, res, next) => {
         req.user = user;
         next();
     } catch (err) {
-        throw new ForbiddenError('Invalid or expired access token');
+        // Use 401 to signal clients to attempt token refresh
+        throw new UnauthorizedError('Invalid or expired access token');
     }
 };

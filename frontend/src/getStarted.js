@@ -72,18 +72,33 @@ export default function GetStartedPage() {
           }),
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(data.message || "Registration failed");
+          let message = 'Registration failed';
+          if (data) {
+            if (data.errors && Array.isArray(data.errors)) {
+              message = data.errors.map(e => e.msg || e.message).join(', ');
+            } else if (data.error?.message) {
+              message = data.error.message;
+            } else if (data.message) {
+              message = data.message;
+            }
+          }
+          throw new Error(message);
         }
 
         setToast({ message: "Account created successfully! Please log in.", type: "success" });
+        // Clear any stale onboarding flag from previous sessions
+        try {
+          localStorage.removeItem("hasOnboarded");
+        } catch (_) {}
         setMode("login");
         setName("");
         setPass("");
         setConfirmPass("");
       } catch (err) {
+        console.error('Registration error:', err);
         setToast({ message: err.message || "Failed to create account. Please try again.", type: "error" });
       } finally {
         setLoading(false);
@@ -107,10 +122,20 @@ export default function GetStartedPage() {
           }),
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(data.message || "Login failed");
+          let message = 'Login failed';
+          if (data) {
+            if (data.errors && Array.isArray(data.errors)) {
+              message = data.errors.map(e => e.msg || e.message).join(', ');
+            } else if (data.error?.message) {
+              message = data.error.message;
+            } else if (data.message) {
+              message = data.message;
+            }
+          }
+          throw new Error(message);
         }
 
         localStorage.setItem("accessToken", data.accessToken);
@@ -121,9 +146,43 @@ export default function GetStartedPage() {
         setEmail("");
         setPass("");
 
-        setTimeout(() => {
-          window.location.pathname = "/onboarding";
-        }, 1500);
+        // Check server-side onboarding status by fetching account details
+        try {
+          const accountRes = await fetch(`${API_URL}/account`, {
+            headers: {
+              "Authorization": `Bearer ${data.accessToken}`,
+              "Content-Type": "application/json"
+            }
+          });
+          
+          if (accountRes.ok) {
+            const accountData = await accountRes.json();
+            // User has onboarded if they have any preference data set
+            const hasOnboarded = !!(accountData.gender || 
+              (accountData.preferences && (
+                accountData.preferences.stylePreferences?.length > 0 ||
+                accountData.preferences.favoriteBrands?.length > 0 ||
+                accountData.preferences.colorPreferences?.length > 0
+              )));
+            
+            localStorage.setItem("hasOnboarded", hasOnboarded ? "true" : "false");
+            
+            setTimeout(() => {
+              window.location.pathname = hasOnboarded ? "/shop" : "/onboarding";
+            }, 1000);
+          } else {
+            // Fallback: if account fetch fails, go to onboarding to be safe
+            setTimeout(() => {
+              window.location.pathname = "/onboarding";
+            }, 1000);
+          }
+        } catch (err) {
+          console.error('Failed to check onboarding status:', err);
+          // Fallback: go to onboarding
+          setTimeout(() => {
+            window.location.pathname = "/onboarding";
+          }, 1000);
+        }
       } catch (err) {
         setToast({ message: err.message || "Failed to log in. Please try again.", type: "error" });
       } finally {

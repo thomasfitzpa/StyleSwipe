@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiFetch } from "./auth";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
@@ -47,21 +48,33 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/users/onboarding', {
+      const response = await apiFetch('http://localhost:5000/api/users/onboarding', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json().catch(() => null);
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to save onboarding data');
+        let message = 'Failed to save onboarding data';
+        if (data) {
+          if (data.errors && Array.isArray(data.errors)) {
+            message = data.errors.map(e => e.msg || e.message).join(', ');
+          } else if (data.error?.message) {
+            message = data.error.message;
+          } else if (data.message) {
+            message = data.message;
+          }
+        }
+        throw new Error(message);
       }
-
+      
+      // Mark onboarding as completed for future logins
+      try {
+        localStorage.setItem('hasOnboarded', 'true');
+      } catch (_) {
+        // ignore storage errors
+      }
       setComplete(true);
     } catch (error) {
       console.error('Onboarding error:', error);
