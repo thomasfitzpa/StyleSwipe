@@ -1,9 +1,10 @@
 // Determine the price range bucket for a given price
 export const getPriceRange = (price) => {
-    if (price < 50) return '$0-50';
-    if (price < 100) return '$50-100';
-    if (price < 200) return '$100-200';
-    return '$200+';
+    // Avoid Map keys starting with '$' which Mongoose disallows
+    if (price < 50) return '0-50';
+    if (price < 100) return '50-100';
+    if (price < 200) return '100-200';
+    return '200+';
 };
 
 // Update a user's preference tallies based on an item
@@ -139,7 +140,9 @@ export const scoreItem = (user, item) => {
     // Price range preference
     if (prefs.priceRange && item.price !== undefined) {
         const pr = getPriceRange(item.price);
-        if (pr === prefs.priceRange) score += weights.priceRangePreference;
+        // Normalize user preference (strip leading '$') to match stored key
+        const prefNorm = String(prefs.priceRange).replace(/^\$/,'');
+        if (pr === prefNorm) score += weights.priceRangePreference;
     }
 
     return score;

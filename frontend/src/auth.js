@@ -44,7 +44,11 @@ export async function refreshAccessToken() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken })
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // If refresh fails, clear tokens to avoid stuck state
+    clearTokens();
+    return null;
+  }
   const data = await res.json();
   // Persist new tokens
   setTokens(data.accessToken, data.refreshToken);
@@ -68,6 +72,20 @@ export async function apiFetch(url, options = {}) {
     if (newToken) {
       const retryOpts = { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${newToken}` } };
       res = await fetch(url, retryOpts);
+    } else {
+      // Ensure headers no longer carry a bad Authorization
+      const cleanOpts = { ...opts };
+      if (cleanOpts.headers) {
+        const { Authorization, ...rest } = cleanOpts.headers;
+        cleanOpts.headers = rest;
+      }
+      // Optionally, retry without auth for endpoints that allow public access
+      // If the endpoint requires auth, this will still be 401 and the caller can handle it.
+      try {
+        res = await fetch(url, cleanOpts);
+      } catch (_) {
+        // swallow network errors here; caller will handle via res.ok check
+      }
     }
   }
   return res;

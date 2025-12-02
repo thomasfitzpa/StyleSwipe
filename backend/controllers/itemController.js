@@ -1,4 +1,5 @@
 import { UnauthorizedError, ValidationError } from '../errors/errors.js';
+import mongoose from 'mongoose';
 import { validationResult } from 'express-validator';
 import User from '../models/userModel.js';
 import Item from '../models/itemModel.js';
@@ -13,15 +14,31 @@ export const getFeed = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 20;
     // What proportion of the feed won't be based on recommendation to encourage user to explore options
     const explorationRate = parseFloat(req.query.explorationRate) || 0.2;
+    // Get list of item IDs to exclude (already shown in this session)
+    const excludeParam = req.query.exclude || '';
+    const excludeIds = [];
+    if (excludeParam) {
+        for (const id of excludeParam.split(',')) {
+            const trimmed = id && id.trim();
+            if (!trimmed) continue;
+            try {
+                // Cast to ObjectId to ensure proper $nin matching
+                excludeIds.push(new mongoose.Types.ObjectId(trimmed));
+            } catch (_) {
+                // Ignore invalid ids
+            }
+        }
+    }
 
     // Find the full user with swipe history
     const existingUser = await User.findById(user._id).select('likedItems dislikedItems preferenceTallies gender preferences');
     if (!existingUser) throw new UnauthorizedError('User not found');
 
-    // Get IDs of already swiped items
+    // Get IDs of already swiped items and items already shown in this session
     const swipedItemIds = [
         ...existingUser.likedItems,
-        ...existingUser.dislikedItems
+        ...existingUser.dislikedItems,
+        ...excludeIds
     ];
 
     // Get the top features from tallies
@@ -32,15 +49,15 @@ export const getFeed = async (req, res) => {
     const topCategories = getTopFeatures(existingUser.preferenceTallies.categories, 5);
     const topPatterns = getTopFeatures(existingUser.preferenceTallies.patterns, 3);
 
-    // Build query for candidate items
-    const candidateQuery = {
+    // Base query for candidate items (no preference constraints)
+    const baseQuery = {
         isActive: true,
         _id: { $nin: swipedItemIds }
     };
 
     // Filter by gender only if the user is male or female
     if (existingUser.gender === "Male" || existingUser.gender === "Female") {
-        candidateQuery.gender = { $in: [existingUser.gender.toLowerCase(), 'unisex'] };
+        baseQuery.gender = { $in: [existingUser.gender.toLowerCase(), 'unisex'] };
     }
 
     // If we have top features, use them to build a preference query
@@ -67,17 +84,19 @@ export const getFeed = async (req, res) => {
     if (topPriceRanges.length > 0) {
         const priceConditions = [];
         topPriceRanges.forEach(range => {
-            switch (range) {
-                case '$0-50':
+            // Normalize to remove any leading '$' for consistency
+            const r = String(range).replace(/^\$/,'');
+            switch (r) {
+                case '0-50':
                     priceConditions.push({ price: { $gte: 0, $lt: 50 } });
                     break;
-                case '$50-100':
+                case '50-100':
                     priceConditions.push({ price: { $gte: 50, $lt: 100 } });
                     break;
-                case '$100-200':
+                case '100-200':
                     priceConditions.push({ price: { $gte: 100, $lt: 200 } });
                     break;
-                case '$200+':
+                case '200+':
                     priceConditions.push({ price: { $gte: 200 } });
                     break;
             }
@@ -94,6 +113,7 @@ export const getFeed = async (req, res) => {
         topPriceRanges.length, topCategories.length, topPatterns.length
     ].some(len => len > 0);
 
+    let filteredQuery = { ...baseQuery };
     if (!hasTopFeature) {
         const prefFallbackConditions = [];
         if (prefs.favoriteBrands && prefs.favoriteBrands.length) {
@@ -106,42 +126,87 @@ export const getFeed = async (req, res) => {
             prefFallbackConditions.push({ availableColors: { $in: prefs.colorPreferences } });
         }
         if (prefs.priceRange) {
-            switch (prefs.priceRange) {
-                case '$0-50':
+            const pr = String(prefs.priceRange).replace(/^\$/,'');
+            switch (pr) {
+                case '0-50':
                     prefFallbackConditions.push({ price: { $gte: 0, $lt: 50 } });
                     break;
-                case '$50-100':
+                case '50-100':
                     prefFallbackConditions.push({ price: { $gte: 50, $lt: 100 } });
                     break;
-                case '$100-200':
+                case '100-200':
                     prefFallbackConditions.push({ price: { $gte: 100, $lt: 200 } });
                     break;
-                case '$200+':
+                case '200+':
                     prefFallbackConditions.push({ price: { $gte: 200 } });
                     break;
             }
         }
         if (prefFallbackConditions.length) {
-            candidateQuery.$or = prefFallbackConditions;
+            filteredQuery.$or = prefFallbackConditions;
         }
     } else if (preferenceConditions.length > 0) {
-        candidateQuery.$or = preferenceConditions;
+        filteredQuery.$or = preferenceConditions;
     }
 
-    // Only show items available in the user's size
+    // Build user sizes for preferential selection (but do not hard filter to avoid exhausting feed)
     const userSizes = [];
     if (prefs.shoeSize) userSizes.push(String(prefs.shoeSize));
     if (prefs.shirtSize) userSizes.push(prefs.shirtSize);
     if (prefs.pantsSize) userSizes.push(prefs.pantsSize);
     if (prefs.shortSize) userSizes.push(prefs.shortSize);
-    
-    if (userSizes.length > 0) {
-        candidateQuery.availableSizes = { $in: userSizes };
-    }
 
     // Fetch a larger pool of candidate items to allow for both scoring and exploration
-    const poolSize = Math.min(limit * 5, 200);
-    const candidateItems = await Item.find(candidateQuery).limit(poolSize);
+    const poolSize = Math.min(limit * 5, 300);
+    let candidateItems = [];
+    if (userSizes.length > 0) {
+        // Try size-preferred items first
+        const sizePreferredQuery = { ...filteredQuery, availableSizes: { $in: userSizes } };
+        const sized = await Item.find(sizePreferredQuery).limit(poolSize);
+        candidateItems = sized;
+        if (candidateItems.length < poolSize) {
+            // Top up with general items without size restriction, keeping current filters
+            const remaining = poolSize - candidateItems.length;
+            const general = await Item.find(filteredQuery).limit(poolSize * 2); // fetch more to allow de-dup
+            const sizedIds = new Set(candidateItems.map(it => String(it._id)));
+            for (const it of general) {
+                const id = String(it._id);
+                if (!sizedIds.has(id)) {
+                    candidateItems.push(it);
+                    sizedIds.add(id);
+                }
+                if (candidateItems.length >= poolSize) break;
+            }
+            // If still short, top up from baseQuery (no preference constraints)
+            if (candidateItems.length < poolSize) {
+                const basePool = await Item.find(baseQuery).limit(poolSize * 2);
+                const pickedIds = new Set(candidateItems.map(it => String(it._id)));
+                for (const it of basePool) {
+                    const id = String(it._id);
+                    if (!pickedIds.has(id)) {
+                        candidateItems.push(it);
+                        pickedIds.add(id);
+                    }
+                    if (candidateItems.length >= poolSize) break;
+                }
+            }
+        }
+    } else {
+        candidateItems = await Item.find(filteredQuery).limit(poolSize);
+        if (candidateItems.length < poolSize) {
+            // Top up from baseQuery to avoid early exhaustion
+            const basePool = await Item.find(baseQuery).limit(poolSize * 2);
+            const pickedIds = new Set(candidateItems.map(it => String(it._id)));
+            for (const it of basePool) {
+                const id = String(it._id);
+                if (!pickedIds.has(id)) {
+                    candidateItems.push(it);
+                    pickedIds.add(id);
+                }
+                if (candidateItems.length >= poolSize) break;
+            }
+        }
+    }
 
     if (candidateItems.length === 0) {
         return res.status(200).json({

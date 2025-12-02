@@ -79,6 +79,10 @@ export default function GetStartedPage() {
         }
 
         setToast({ message: "Account created successfully! Please log in.", type: "success" });
+        // Clear any stale onboarding flag from previous sessions
+        try {
+          localStorage.removeItem("hasOnboarded");
+        } catch (_) {}
         setMode("login");
         setName("");
         setPass("");
@@ -121,17 +125,43 @@ export default function GetStartedPage() {
         setEmail("");
         setPass("");
 
-        const hasOnboarded = (() => {
-          try {
-            return localStorage.getItem("hasOnboarded") === "true";
-          } catch (_) {
-            return false;
+        // Check server-side onboarding status by fetching account details
+        try {
+          const accountRes = await fetch(`${API_URL}/account`, {
+            headers: {
+              "Authorization": `Bearer ${data.accessToken}`,
+              "Content-Type": "application/json"
+            }
+          });
+          
+          if (accountRes.ok) {
+            const accountData = await accountRes.json();
+            // User has onboarded if they have any preference data set
+            const hasOnboarded = !!(accountData.gender || 
+              (accountData.preferences && (
+                accountData.preferences.stylePreferences?.length > 0 ||
+                accountData.preferences.favoriteBrands?.length > 0 ||
+                accountData.preferences.colorPreferences?.length > 0
+              )));
+            
+            localStorage.setItem("hasOnboarded", hasOnboarded ? "true" : "false");
+            
+            setTimeout(() => {
+              window.location.pathname = hasOnboarded ? "/shop" : "/onboarding";
+            }, 1000);
+          } else {
+            // Fallback: if account fetch fails, go to onboarding to be safe
+            setTimeout(() => {
+              window.location.pathname = "/onboarding";
+            }, 1000);
           }
-        })();
-
-        setTimeout(() => {
-          window.location.pathname = hasOnboarded ? "/shop" : "/onboarding";
-        }, 1000);
+        } catch (err) {
+          console.error('Failed to check onboarding status:', err);
+          // Fallback: go to onboarding
+          setTimeout(() => {
+            window.location.pathname = "/onboarding";
+          }, 1000);
+        }
       } catch (err) {
         setToast({ message: err.message || "Failed to log in. Please try again.", type: "error" });
       } finally {

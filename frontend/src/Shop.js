@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from "react";
+import { apiFetch } from "./auth";
 
 const ShopPage = forwardRef(({ cart, setCart }, ref) => {
   const [showCart, setShowCart] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [items, setItems] = useState([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [feedEnded, setFeedEnded] = useState(false);
+  const [lastSwipes, setLastSwipes] = useState([]); // stack of { itemId, action }
+  const [feedError, setFeedError] = useState(null);
+  const [shownItemIds, setShownItemIds] = useState([]); // IDs already fetched in this session
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -17,72 +24,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
   const currentIndexRef = useRef(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  const [products] = useState([
-    {
-      id: 1,
-      name: "Classic White Tee",
-      price: 29.99,
-      image: "https://via.placeholder.com/400x600/9b8cff/ffffff?text=White+Tee",
-      description: "Essential white t-shirt for your wardrobe",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 2,
-      name: "Denim Jacket",
-      price: 79.99,
-      image: "https://via.placeholder.com/400x600/47e7c1/ffffff?text=Denim+Jacket",
-      description: "Vintage-inspired denim jacket",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 3,
-      name: "Black Sneakers",
-      price: 89.99,
-      image: "https://via.placeholder.com/400x600/1a1a24/ffffff?text=Sneakers",
-      description: "Comfortable everyday sneakers",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 4,
-      name: "Cargo Pants",
-      price: 59.99,
-      image: "https://via.placeholder.com/400x600/252535/ffffff?text=Cargo+Pants",
-      description: "Functional and stylish cargo pants",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 5,
-      name: "Hoodie",
-      price: 49.99,
-      image: "https://via.placeholder.com/400x600/2a2a3a/ffffff?text=Hoodie",
-      description: "Cozy pullover hoodie",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 6,
-      name: "Baseball Cap",
-      price: 24.99,
-      image: "https://via.placeholder.com/400x600/1f1f2f/ffffff?text=Cap",
-      description: "Classic baseball cap",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 7,
-      name: "Leather Jacket",
-      price: 149.99,
-      image: "https://via.placeholder.com/400x600/9b8cff/ffffff?text=Leather+Jacket",
-      description: "Premium leather jacket",
-      brand: "StyleSwipe"
-    },
-    {
-      id: 8,
-      name: "Sunglasses",
-      price: 34.99,
-      image: "https://via.placeholder.com/400x600/47e7c1/ffffff?text=Sunglasses",
-      description: "Stylish aviator sunglasses",
-      brand: "StyleSwipe"
-    }
-  ]);
+  const ITEMS_API = "http://localhost:5000/api/items";
 
   // Detect mobile/desktop
   useEffect(() => {
@@ -188,25 +130,139 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
     window.location.pathname = "/checkout";
   };
 
+  // Fetch initial batch
+  useEffect(() => {
+    const loadInitial = async () => {
+      setLoadingFeed(true);
+      setFeedError(null);
+      try {
+        console.log('Fetching initial feed...');
+        const excludeIds = shownItemIds.length > 0 ? `&exclude=${shownItemIds.join(',')}` : '';
+        const res = await apiFetch(`${ITEMS_API}/feed?limit=20${excludeIds}`);
+        console.log('Feed response status:', res.status);
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Feed API error: ${res.status} - ${errorText}`);
+        }
+        const data = await res.json();
+        console.log('Feed data received:', data);
+        const mapped = (data.items || []).map((it) => ({
+          id: it._id || it.id,
+          name: it.name,
+          price: it.price,
+          image: Array.isArray(it.images) && it.images.length ? it.images[0] : "",
+          description: it.description || it.brand || "",
+          brand: it.brand || "",
+        }));
+        // Normalize image URLs (convert s3://bucket/key to https)
+        const normalized = mapped.map(p => ({
+          ...p,
+          image: normalizeImageUrl(p.image)
+        }));
+        setItems(normalized);
+        setShownItemIds(normalized.map(item => item.id));
+        setFeedEnded((data.items || []).length === 0);
+        console.log('Loaded items:', mapped.length);
+      } catch (e) {
+        console.error("Failed to load feed", e);
+        setFeedError(e.message || 'Failed to load feed');
+      } finally {
+        setLoadingFeed(false);
+      }
+    };
+    loadInitial();
+  }, []);
+
+  // Load next batch when near end
+  useEffect(() => {
+    const nearEnd = items.length > 0 && currentIndex >= items.length - 3 && !loadingFeed && !feedEnded;
+    if (!nearEnd) return;
+    const loadMore = async () => {
+      setLoadingFeed(true);
+      try {
+        const excludeIds = shownItemIds.length > 0 ? `&exclude=${shownItemIds.join(',')}` : '';
+        const res = await apiFetch(`${ITEMS_API}/feed?limit=20${excludeIds}`);
+        const data = await res.json();
+        const mapped = (data.items || []).map((it) => ({
+          id: it._id || it.id,
+          name: it.name,
+          price: it.price,
+          image: Array.isArray(it.images) && it.images.length ? it.images[0] : "",
+          description: it.description || it.brand || "",
+          brand: it.brand || "",
+        }));
+        const normalized = mapped.map(p => ({
+          ...p,
+          image: normalizeImageUrl(p.image)
+        }));
+        if (normalized.length === 0) setFeedEnded(true);
+        setItems((prev) => [...prev, ...normalized]);
+        setShownItemIds((prev) => [...prev, ...normalized.map(item => item.id)]);
+      } catch (e) {
+        console.error("Failed to load more feed", e);
+      } finally {
+        setLoadingFeed(false);
+      }
+    };
+    loadMore();
+  }, [currentIndex, items.length, loadingFeed, feedEnded]);
+
+  // Helper: convert s3 URI to public HTTPS URL
+  function normalizeImageUrl(url) {
+    if (!url) return url;
+    // Match s3://bucket/key or s3://bucket/path/to/key
+    const s3Match = /^s3:\/\/([^\/]+)\/(.+)$/.exec(url);
+    if (s3Match) {
+      const bucket = s3Match[1];
+      const key = s3Match[2];
+      return `https://${bucket}.s3.amazonaws.com/${key}`;
+    }
+    return url;
+  }
+
   // Update ref when currentIndex changes
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
 
   // Swipe handlers
-  const handleSwipe = (direction) => {
+  const handleSwipe = async (direction) => {
     const idx = currentIndexRef.current;
-    if (idx >= products.length || isAnimating) return;
+    if (idx >= items.length || isAnimating) return;
     
-    const currentProduct = products[idx];
+    const currentProduct = items[idx];
     
     // Set swipe direction for animation
     setSwipeDirection(direction);
     setIsAnimating(true);
     
     if (direction === 'right') {
-      // Like the item
-      likeItem(currentProduct);
+      // Like the item (server)
+      try {
+        const res = await apiFetch(`${ITEMS_API}/like`, {
+          method: 'POST',
+          body: JSON.stringify({ itemId: currentProduct.id })
+        });
+        if (res.ok) {
+          setLastSwipes((prev) => [...prev, { itemId: currentProduct.id, action: 'like' }]);
+          likeItem(currentProduct);
+        }
+      } catch (e) {
+        console.error('Failed to like item', e);
+      }
+    } else if (direction === 'left') {
+      // Dislike (server)
+      try {
+        const res = await apiFetch(`${ITEMS_API}/dislike`, {
+          method: 'POST',
+          body: JSON.stringify({ itemId: currentProduct.id })
+        });
+        if (res.ok) {
+          setLastSwipes((prev) => [...prev, { itemId: currentProduct.id, action: 'dislike' }]);
+        }
+      } catch (e) {
+        console.error('Failed to dislike item', e);
+      }
     }
     // Left swipe just skips (no action needed)
     
@@ -230,7 +286,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
   // Arrow key support for desktop
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (currentIndexRef.current >= products.length) return;
+      if (currentIndexRef.current >= items.length) return;
       
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -243,7 +299,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [products]);
+  }, [items]);
 
   // Touch handlers
   const handleTouchStart = (e) => {
@@ -314,9 +370,9 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
     } else {
       document.body.style.userSelect = '';
     }
-  }, [isDragging, products]);
+  }, [isDragging, items]);
 
-  const currentProduct = products[currentIndex];
+  const currentProduct = items[currentIndex];
   const rotation = isAnimating 
     ? (swipeDirection === 'right' ? 30 : -30)
     : dragOffset.x * 0.1;
@@ -327,12 +383,28 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center px-4 md:px-6 py-6 md:py-10">
-      {currentIndex < products.length ? (
+      {feedError ? (
+        <div className="text-center py-12 max-w-md mx-auto">
+          <h2 className="text-2xl font-bold mb-3 text-red-400">Oops! Something went wrong</h2>
+          <p className="text-[#a6a6b3] mb-4">{feedError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 rounded-lg font-semibold bg-white/[0.1] border border-white/20 text-white hover:bg-white/[0.15] transition-all"
+          >
+            Try Again
+          </button>
+        </div>
+      ) : loadingFeed && items.length === 0 ? (
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-3">Loading your feed…</h2>
+          <p className="text-[#a6a6b3]">Hang tight while we fetch items.</p>
+        </div>
+      ) : currentIndex < items.length ? (
         <>
           {/* Swipe Card Container */}
           <div className="relative w-full max-w-sm h-[600px] md:h-[650px] flex items-center justify-center">
             {/* Next card (background) - animated entrance */}
-            {currentIndex + 1 < products.length && (
+            {currentIndex + 1 < items.length && (
               <div 
                 className={`absolute w-full max-w-sm bg-white/[0.03] border border-white/5 rounded-3xl h-[560px] md:h-[610px] transform scale-95 transition-all duration-300 ${
                   isAnimating ? 'scale-100 opacity-100' : 'scale-95 opacity-50'
@@ -388,7 +460,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
               {/* Product Image */}
               <div className="relative h-[400px] md:h-[450px] bg-gradient-to-br from-white/10 to-white/[0.03]">
                 <img
-                  src={currentProduct?.image}
+                  src={currentProduct?.image || "https://via.placeholder.com/400x600/1a1a24/ffffff?text=StyleSwipe"}
                   alt={currentProduct?.name}
                   className="w-full h-full object-cover"
                   draggable={false}
@@ -410,7 +482,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
                     {currentProduct?.name}
                   </h3>
                   <span className="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                    ${currentProduct?.price.toFixed(2)}
+                    {typeof currentProduct?.price === 'number' ? `$${currentProduct?.price.toFixed(2)}` : ''}
                   </span>
                 </div>
                 <p className="text-[#a6a6b3] text-sm mb-4">
@@ -486,19 +558,54 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
               : "Swipe or use arrow keys • Right = Like • Left = Pass"
             }
           </p>
+          {/* Undo last swipe */}
+          <div className="mt-4">
+            <button
+              disabled={lastSwipes.length === 0 || isAnimating}
+              onClick={async () => {
+                const last = lastSwipes[lastSwipes.length - 1];
+                try {
+                  await apiFetch(`${ITEMS_API}/undo`, {
+                    method: 'POST',
+                    body: JSON.stringify({ itemId: last.itemId })
+                  });
+                  // Move back one index to show the undone item again
+                  setCurrentIndex((prev) => Math.max(prev - 1, 0));
+                  setLastSwipes((prev) => prev.slice(0, -1));
+                  // Also remove from likedItems if the undone was a like
+                  if (last.action === 'like') {
+                    setLikedItems((prev) => prev.filter((li) => li.id !== last.itemId));
+                  }
+                } catch (e) {
+                  console.error('Failed to undo swipe', e);
+                }
+              }}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm border border-white/20 transition-all ${lastSwipes.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/40 hover:text-primary'}`}
+            >
+              Undo Last Swipe
+            </button>
+          </div>
         </>
       ) : (
         <div className="text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            You've seen everything! 🎉
+            {items.length === 0 ? 'No items to show' : "You've seen everything! 🎉"}
           </h2>
           <p className="text-[#a6a6b3] text-base md:text-lg mb-8">
-            Check your cart or refresh to see more items
+            {items.length === 0 
+              ? 'There are no items in the feed yet. Check back later or contact support.'
+              : feedEnded 
+                ? 'No more items available right now.' 
+                : 'Check your cart or refresh to see more items'
+            }
           </p>
           <button
             onClick={() => {
               setCurrentIndex(0);
-              window.location.reload();
+              // Reload feed fresh
+              setItems([]);
+              setFeedEnded(false);
+              setShownItemIds([]);
             }}
             className="px-8 py-4 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45"
           >
