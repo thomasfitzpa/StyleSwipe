@@ -61,7 +61,12 @@ export default function OnboardingPage() {
         const error = await response.json();
         throw new Error(error.error?.message || 'Failed to save onboarding data');
       }
-
+      // Mark onboarding as completed for future logins
+      try {
+        localStorage.setItem('hasOnboarded', 'true');
+      } catch (_) {
+        // ignore storage errors
+      }
       setComplete(true);
     } catch (error) {
       console.error('Onboarding error:', error);

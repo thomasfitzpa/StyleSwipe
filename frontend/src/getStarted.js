@@ -121,9 +121,17 @@ export default function GetStartedPage() {
         setEmail("");
         setPass("");
 
+        const hasOnboarded = (() => {
+          try {
+            return localStorage.getItem("hasOnboarded") === "true";
+          } catch (_) {
+            return false;
+          }
+        })();
+
         setTimeout(() => {
-          window.location.pathname = "/onboarding";
-        }, 1500);
+          window.location.pathname = hasOnboarded ? "/shop" : "/onboarding";
+        }, 1000);
       } catch (err) {
         setToast({ message: err.message || "Failed to log in. Please try again.", type: "error" });
       } finally {
