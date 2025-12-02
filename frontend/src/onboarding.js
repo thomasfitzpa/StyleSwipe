@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiFetch } from "./auth";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
@@ -47,13 +48,8 @@ export default function OnboardingPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/users/onboarding', {
+      const response = await apiFetch('http://localhost:5000/api/users/onboarding', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(formData)
       });
 

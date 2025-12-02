@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { serverLogout } from "./auth";
 
 export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
   const [route, setRoute] = useState(() => {
@@ -107,12 +108,14 @@ export default function Header({ isLoggedIn, onLoginChange, onCartClick }) {
     window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    if (onLoginChange) onLoginChange(false);
-    window.location.pathname = "/";
-    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  const handleLogout = async () => {
+    try {
+      await serverLogout();
+    } finally {
+      if (onLoginChange) onLoginChange(false);
+      window.location.pathname = "/";
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
   };
 
   // Get started page - no right side content
