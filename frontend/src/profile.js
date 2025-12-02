@@ -146,7 +146,7 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5000/api/users/profile', {
+      const response = await fetch('http://localhost:5000/api/users/account', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -165,14 +165,24 @@ export default function ProfilePage() {
         })
       });
 
+      const data = await response.json().catch(() => null);
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update profile');
+        let message = 'Failed to update profile';
+        if (data) {
+          if (data.errors && Array.isArray(data.errors)) {
+            message = data.errors.map(e => e.msg || e.message).join(', ');
+          } else if (data.error?.message) {
+            message = data.error.message;
+          } else if (data.message) {
+            message = data.message;
+          }
+        }
+        throw new Error(message);
       }
 
-      const updatedData = await response.json();
-      setUserData(updatedData);
-      setFormData(updatedData);
+      setUserData(data);
+      setFormData(data);
       setEditMode(false);
       setToast({ message: 'Profile updated successfully!', type: 'success' });
     } catch (error) {

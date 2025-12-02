@@ -72,10 +72,20 @@ export default function GetStartedPage() {
           }),
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(data.message || "Registration failed");
+          let message = 'Registration failed';
+          if (data) {
+            if (data.errors && Array.isArray(data.errors)) {
+              message = data.errors.map(e => e.msg || e.message).join(', ');
+            } else if (data.error?.message) {
+              message = data.error.message;
+            } else if (data.message) {
+              message = data.message;
+            }
+          }
+          throw new Error(message);
         }
 
         setToast({ message: "Account created successfully! Please log in.", type: "success" });
@@ -88,6 +98,7 @@ export default function GetStartedPage() {
         setPass("");
         setConfirmPass("");
       } catch (err) {
+        console.error('Registration error:', err);
         setToast({ message: err.message || "Failed to create account. Please try again.", type: "error" });
       } finally {
         setLoading(false);
@@ -111,10 +122,20 @@ export default function GetStartedPage() {
           }),
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(data.message || "Login failed");
+          let message = 'Login failed';
+          if (data) {
+            if (data.errors && Array.isArray(data.errors)) {
+              message = data.errors.map(e => e.msg || e.message).join(', ');
+            } else if (data.error?.message) {
+              message = data.error.message;
+            } else if (data.message) {
+              message = data.message;
+            }
+          }
+          throw new Error(message);
         }
 
         localStorage.setItem("accessToken", data.accessToken);

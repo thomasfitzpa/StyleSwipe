@@ -56,6 +56,10 @@ export async function refreshAccessToken() {
 }
 
 // apiFetch: attaches Authorization, retries once on 401 using refresh
+// If authorization fails after retry, redirects to login
+let authFailureCount = 0;
+const MAX_AUTH_FAILURES = 2;
+
 export async function apiFetch(url, options = {}) {
   const opts = { ...options };
   const token = getAccessToken();
@@ -72,7 +76,30 @@ export async function apiFetch(url, options = {}) {
     if (newToken) {
       const retryOpts = { ...opts, headers: { ...opts.headers, Authorization: `Bearer ${newToken}` } };
       res = await fetch(url, retryOpts);
+      
+      // If still 401 after refresh, count as auth failure
+      if (res.status === 401) {
+        authFailureCount++;
+        if (authFailureCount >= MAX_AUTH_FAILURES) {
+          clearTokens();
+          authFailureCount = 0;
+          window.location.href = '/';
+          return res;
+        }
+      } else {
+        // Successful after refresh, reset counter
+        authFailureCount = 0;
+      }
     } else {
+      // Refresh failed - count and potentially redirect
+      authFailureCount++;
+      if (authFailureCount >= MAX_AUTH_FAILURES) {
+        clearTokens();
+        authFailureCount = 0;
+        window.location.href = '/';
+        return res;
+      }
+      
       // Ensure headers no longer carry a bad Authorization
       const cleanOpts = { ...opts };
       if (cleanOpts.headers) {
@@ -87,6 +114,9 @@ export async function apiFetch(url, options = {}) {
         // swallow network errors here; caller will handle via res.ok check
       }
     }
+  } else {
+    // Reset auth failure counter on successful request
+    authFailureCount = 0;
   }
   return res;
 }

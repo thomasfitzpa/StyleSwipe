@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from "react";
 import { apiFetch } from "./auth";
+import AddToCartModal from "./AddToCartModal";
 
 const ShopPage = forwardRef(({ cart, setCart }, ref) => {
   const [showCart, setShowCart] = useState(false);
@@ -36,21 +37,28 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
   }, []);
 
   // Initialize cart from localStorage or use prop
-  const [localCart, setLocalCart] = useState(() => {
-    if (cart) return cart;
-    const saved = localStorage.getItem("shoppingCart");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [serverCart, setServerCart] = useState([]);
+  const [subtotal, setSubtotal] = useState(0);
+  const [addingItem, setAddingItem] = useState(null);
+  const USERS_API = "http://localhost:5000/api/users";
 
   // Sync cart with localStorage and parent component
   useEffect(() => {
-    localStorage.setItem("shoppingCart", JSON.stringify(localCart));
-    if (setCart) setCart(localCart);
-    // Trigger custom event to update header cart counter
-    window.dispatchEvent(new CustomEvent('cartUpdated', { 
-      detail: { cart: localCart } 
-    }));
-  }, [localCart, setCart]);
+    const loadCart = async () => {
+      try {
+        const res = await apiFetch(`${USERS_API}/cart`);
+        if (!res.ok) return; // show empty silently
+        const data = await res.json();
+        setServerCart(data.items || []);
+        setSubtotal(data.subtotal || 0);
+        if (setCart) setCart(data.items || []);
+        window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: data.items || [] } }));
+      } catch (e) {
+        console.error('Failed to load cart', e);
+      }
+    };
+    loadCart();
+  }, [setCart]);
 
   // Sync liked items with localStorage
   useEffect(() => {
@@ -69,20 +77,9 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
     return () => window.removeEventListener('openCart', handleOpenCart);
   }, []);
 
-  const addToCart = (product) => {
-    setLocalCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === product.id);
-      if (existingItem) {
-        return prevCart.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prevCart, { ...product, quantity: 1 }];
-    });
-    // Trigger animation feedback
-    window.dispatchEvent(new CustomEvent('itemAddedToCart'));
+  const openAddToCart = (product) => {
+    // The feed item should include availableSizes, availableColors, stock
+    setAddingItem(product);
   };
 
   const likeItem = (product) => {
@@ -94,35 +91,83 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
     });
   };
 
-  const updateQuantity = (productId, newQuantity) => {
+  const updateQuantity = async (itemId, oldSize, oldColor, newQuantity) => {
     if (newQuantity <= 0) {
-      removeFromCart(productId);
+      await removeFromCart(itemId, oldSize, oldColor);
       return;
     }
-    setLocalCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId ? { ...item, quantity: newQuantity } : item
-      )
-    );
+    try {
+      const res = await apiFetch(`${USERS_API}/cart`, {
+        method: 'PUT',
+        body: JSON.stringify({ itemId, oldSize, oldColor, newQuantity })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        let message = 'Failed to update quantity';
+        if (data) {
+          if (data.errors && Array.isArray(data.errors)) {
+            message = data.errors.map(e => e.msg || e.message).join(', ');
+          } else if (data.error?.message) {
+            message = data.error.message;
+          } else if (data.message) {
+            message = data.message;
+          }
+        }
+        throw new Error(message);
+      }
+      setSubtotal(data.subtotal || 0);
+      // Refresh cart list
+      const refreshed = await apiFetch(`${USERS_API}/cart`);
+      if (refreshed.ok) {
+        const json = await refreshed.json();
+        setServerCart(json.items || []);
+      }
+    } catch (e) {
+      console.error('Update quantity error:', e);
+      alert(e.message || 'Failed to update quantity');
+    }
   };
 
-  const removeFromCart = (productId) => {
-    setLocalCart((prevCart) => prevCart.filter((item) => item.id !== productId));
+  const removeFromCart = async (itemId, selectedSize, selectedColor) => {
+    try {
+      const res = await apiFetch(`${USERS_API}/cart`, {
+        method: 'DELETE',
+        body: JSON.stringify({ itemId, selectedSize, selectedColor })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        let message = 'Failed to remove item';
+        if (data) {
+          if (data.errors && Array.isArray(data.errors)) {
+            message = data.errors.map(e => e.msg || e.message).join(', ');
+          } else if (data.error?.message) {
+            message = data.error.message;
+          } else if (data.message) {
+            message = data.message;
+          }
+        }
+        throw new Error(message);
+      }
+      setSubtotal(data.subtotal || 0);
+      const refreshed = await apiFetch(`${USERS_API}/cart`);
+      if (refreshed.ok) {
+        const json = await refreshed.json();
+        setServerCart(json.items || []);
+      }
+    } catch (e) {
+      console.error('Remove from cart error:', e);
+      alert(e.message || 'Failed to remove item');
+    }
   };
 
-  const getTotalPrice = () => {
-    return localCart.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0
-    );
-  };
+  const getTotalPrice = () => subtotal;
 
   const getCartItemCount = () => {
-    return localCart.reduce((total, item) => total + item.quantity, 0);
+    return serverCart.reduce((total, item) => total + (item.quantity || 0), 0);
   };
 
   const handleCheckout = () => {
-    if (localCart.length === 0) {
+    if (serverCart.length === 0) {
       alert("Your cart is empty!");
       return;
     }
@@ -148,11 +193,16 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
         console.log('Feed data received:', data);
         const mapped = (data.items || []).map((it) => ({
           id: it._id || it.id,
+          _id: it._id || it.id,
           name: it.name,
           price: it.price,
+          images: Array.isArray(it.images) ? it.images : [],
           image: Array.isArray(it.images) && it.images.length ? it.images[0] : "",
           description: it.description || it.brand || "",
           brand: it.brand || "",
+          availableSizes: it.availableSizes || [],
+          availableColors: it.availableColors || [],
+          stock: it.stock || {},
         }));
         // Normalize image URLs (convert s3://bucket/key to https)
         const normalized = mapped.map(p => ({
@@ -185,11 +235,16 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
         const data = await res.json();
         const mapped = (data.items || []).map((it) => ({
           id: it._id || it.id,
+          _id: it._id || it.id,
           name: it.name,
           price: it.price,
+          images: Array.isArray(it.images) ? it.images : [],
           image: Array.isArray(it.images) && it.images.length ? it.images[0] : "",
           description: it.description || it.brand || "",
           brand: it.brand || "",
+          availableSizes: it.availableSizes || [],
+          availableColors: it.availableColors || [],
+          stock: it.stock || {},
         }));
         const normalized = mapped.map(p => ({
           ...p,
@@ -217,7 +272,32 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
       const key = s3Match[2];
       return `https://${bucket}.s3.amazonaws.com/${key}`;
     }
+    // Handle Google Cloud Storage links if present
+    const gcsMatch = /^gs:\/\/([^\/]+)\/(.+)$/.exec(url);
+    if (gcsMatch) {
+      const bucket = gcsMatch[1];
+      const key = gcsMatch[2];
+      return `https://storage.googleapis.com/${bucket}/${key}`;
+    }
     return url;
+  }
+
+  // Helper: extract cart item image from various possible structures
+  function getCartItemImage(cartItem) {
+    // Try populated item.images array
+    if (cartItem.item && Array.isArray(cartItem.item.images) && cartItem.item.images.length) {
+      return normalizeImageUrl(cartItem.item.images[0]);
+    }
+    // Try direct images array
+    if (Array.isArray(cartItem.images) && cartItem.images.length) {
+      return normalizeImageUrl(cartItem.images[0]);
+    }
+    // Try single image property
+    if (cartItem.image) {
+      return normalizeImageUrl(cartItem.image);
+    }
+    // Fallback to placeholder
+    return "https://via.placeholder.com/100";
   }
 
   // Update ref when currentIndex changes
@@ -460,7 +540,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
               {/* Product Image */}
               <div className="relative h-[400px] md:h-[450px] bg-gradient-to-br from-white/10 to-white/[0.03]">
                 <img
-                  src={currentProduct?.image || "https://via.placeholder.com/400x600/1a1a24/ffffff?text=StyleSwipe"}
+                  src={normalizeImageUrl(currentProduct?.image) || "https://via.placeholder.com/400x600/1a1a24/ffffff?text=StyleSwipe"}
                   alt={currentProduct?.name}
                   className="w-full h-full object-cover"
                   draggable={false}
@@ -494,9 +574,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
                 
                 {/* Add to Cart Button */}
                 <button
-                  onClick={() => {
-                    addToCart(currentProduct);
-                  }}
+                  onClick={() => openAddToCart(currentProduct)}
                   className="w-full px-6 py-3 rounded-xl font-bold text-base bg-gradient-to-br from-primary to-secondary text-dark-bg shadow-lg shadow-primary/35 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45"
                 >
                   Add to Cart
@@ -633,7 +711,7 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
             </div>
 
             <div className="p-4 md:p-6">
-              {localCart.length === 0 ? (
+              {serverCart.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-[#a6a6b3] text-base md:text-lg mb-4">Your cart is empty</p>
                   <p className="text-[#a6a6b3] text-sm mb-4">Add items to your cart to see them here!</p>
@@ -647,46 +725,46 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
               ) : (
                 <>
                   <div className="space-y-3 md:space-y-4 mb-4 md:mb-6">
-                    {localCart.map((item) => (
+                    {serverCart.map((item) => (
                       <div
-                        key={item.id}
+                        key={`${item.itemId || item.item}_${item.selectedSize}_${item.selectedColor}`}
                         className="bg-white/[0.06] border border-white/10 rounded-xl p-3 md:p-4"
                       >
                         <div className="flex gap-3 md:gap-4">
                           <img
-                            src={item.image}
-                            alt={item.name}
+                            src={getCartItemImage(item)}
+                            alt={(item.item && item.item.name) || item.name || item.itemName}
                             className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-lg flex-shrink-0"
                           />
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-white mb-1 text-sm md:text-base truncate">
-                              {item.name}
+                              {(item.item && item.item.name) || item.name || item.itemName}
                             </h3>
                             <p className="text-[#a6a6b3] text-xs md:text-sm mb-2">
-                              ${item.price.toFixed(2)}
+                              ${Number((item.item && item.item.price) || item.price || 0).toFixed(2)} • {item.selectedSize} • {item.selectedColor}
                             </p>
                             <div className="flex items-center gap-2 md:gap-3">
                               <button
                                 onClick={() =>
-                                  updateQuantity(item.id, item.quantity - 1)
+                                  updateQuantity(item.item?._id || item.itemId || item.item, item.selectedSize, item.selectedColor, (item.quantity || 1) - 1)
                                 }
                                 className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/[0.1] border border-white/20 text-white hover:bg-white/[0.15] transition-all flex items-center justify-center text-sm md:text-base"
                               >
                                 −
                               </button>
                               <span className="text-white font-semibold min-w-[1.5rem] md:min-w-[2rem] text-center text-sm md:text-base">
-                                {item.quantity}
+                                {item.quantity || 1}
                               </span>
                               <button
                                 onClick={() =>
-                                  updateQuantity(item.id, item.quantity + 1)
+                                  updateQuantity(item.item?._id || item.itemId || item.item, item.selectedSize, item.selectedColor, (item.quantity || 1) + 1)
                                 }
                                 className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/[0.1] border border-white/20 text-white hover:bg-white/[0.15] transition-all flex items-center justify-center text-sm md:text-base"
                               >
                                 +
                               </button>
                               <button
-                                onClick={() => removeFromCart(item.id)}
+                                onClick={() => removeFromCart(item.item?._id || item.itemId || item.item, item.selectedSize, item.selectedColor)}
                                 className="ml-auto text-red-400 hover:text-red-300 transition-colors text-xs md:text-sm font-medium"
                               >
                                 Remove
@@ -719,6 +797,24 @@ const ShopPage = forwardRef(({ cart, setCart }, ref) => {
             </div>
           </div>
         </div>
+      )}
+
+      {addingItem && (
+        <AddToCartModal
+          item={addingItem}
+          cartItems={serverCart}
+          onClose={() => setAddingItem(null)}
+          onAdded={async () => {
+            // refresh cart when added
+            const res = await apiFetch(`${USERS_API}/cart`);
+            if (res.ok) {
+              const data = await res.json();
+              setServerCart(data.items || []);
+              setSubtotal(data.subtotal || 0);
+            }
+            setShowCart(true);
+          }}
+        />
       )}
 
     </div>

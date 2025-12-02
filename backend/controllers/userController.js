@@ -305,7 +305,9 @@ export const addToCart = async (req, res) => {
     }
 
     // Check stock availability
-    const availableStock = item.stock?.[selectedSize]?.[selectedColor] || 0;
+    // Handle MongoDB Map object
+    const sizeStock = item.stock?.get?.(selectedSize) || item.stock?.[selectedSize];
+    const availableStock = sizeStock?.get?.(selectedColor) ?? sizeStock?.[selectedColor] ?? 0;
     const requestedQuantity = quantity || 1;
 
     // Check if this exact item/size/color combo already exists in cart
@@ -474,7 +476,9 @@ export const updateCartItem = async (req, res) => {
     }
 
     // Check stock availability
-    const availableStock = item.stock?.[finalSize]?.[finalColor] || 0;
+    // Handle MongoDB Map object
+    const sizeStock = item.stock?.get?.(finalSize) || item.stock?.[finalSize];
+    const availableStock = sizeStock?.get?.(finalColor) ?? sizeStock?.[finalColor] ?? 0;
 
     // If size/color combination changed, check if it already exists in cart
     if (finalSize !== oldSize || finalColor !== oldColor) {
