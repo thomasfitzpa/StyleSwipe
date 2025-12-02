@@ -7,7 +7,7 @@ import OnboardingPage from "./onboarding";
 import Header from "./Header";
 import ShopPage from "./Shop";
 import CheckoutPage from "./Checkout";
-import ProfilePage from "./Profile";
+import ProfilePage from "./profile";
 
 
 export default function App() {
