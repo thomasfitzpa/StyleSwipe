@@ -178,7 +178,7 @@ export default function App() {
             <Step
               n="2"
               title="Swipe"
-              text="Right = I want that! Left = Not for me. Super-like to get instant restock/price notifications."
+              text="Right = I want that! Left = Not for me."
             />
           </div>
           <div data-aos="fade-up" data-aos-delay="300">
@@ -324,7 +324,7 @@ export default function App() {
         />
         <FAQ
           q="How do price alerts work?"
-          a="Super-like or add to a Board—if a size or price changes, we'll ping you."
+          a="Add items to a Board—if a size or price changes, we'll ping you."
         />
         <FAQ
           q="Do you resell my data?"
@@ -364,15 +364,12 @@ function Hero() {
           </a>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto mt-14">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl mx-auto mt-14">
           <div data-aos="flip-left" data-aos-delay="100">
-            <DemoCard label="Right swipe" />
+            <DemoCard label="Right swipe" imagePlaceholder="https://styleswipe-image-items.s3.amazonaws.com/Like.png" />
           </div>
           <div data-aos="flip-left" data-aos-delay="200">
-            <DemoCard label="Left swipe" />
-          </div>
-          <div data-aos="flip-left" data-aos-delay="300">
-            <DemoCard label="Super-like" />
+            <DemoCard label="Left swipe" imagePlaceholder="https://styleswipe-image-items.s3.amazonaws.com/Dislike.png" />
           </div>
         </div>
       </div>
@@ -380,10 +377,18 @@ function Hero() {
   );
 }
 
-function DemoCard({ label }) {
+function DemoCard({ label, imagePlaceholder }) {
   return (
     <div className="bg-white/[0.06] border border-white/10 rounded-2xl p-4 transition-all duration-300 cursor-pointer hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
-      <div className="h-44 md:h-48 rounded-xl bg-gradient-to-br from-white/10 to-white/[0.03] relative overflow-hidden shimmer"></div>
+      <div className="h-44 md:h-48 rounded-xl bg-gradient-to-br from-white/10 to-white/[0.03] relative overflow-hidden shimmer">
+        {imagePlaceholder && (
+          <img 
+            src={imagePlaceholder} 
+            alt={label}
+            className="w-full h-full object-cover"
+          />
+        )}
+      </div>
       <div className="flex items-center justify-between mt-3">
         <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 border border-white/12 text-white">{label}</span>
         <div className="opacity-50 text-lg">⋯</div>
